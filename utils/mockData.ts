@@ -1,0 +1,157 @@
+import { StoryChain, Badge, User } from '../types';
+
+export const mockStoryChains: StoryChain[] = [
+  {
+    id: '1',
+    title: 'The Midnight Detective',
+    coverArt: '🕵️',
+    blocks: [
+      {
+        id: 'b1',
+        username: 'NoirFan22',
+        audioUri: 'mock-audio-1',
+        duration: 18,
+        timestamp: '2025-10-06T20:15:00Z',
+        votes: 12,
+      },
+      {
+        id: 'b2',
+        username: 'StoryWeaver',
+        audioUri: 'mock-audio-2',
+        duration: 22,
+        timestamp: '2025-10-06T21:30:00Z',
+        votes: 8,
+      },
+      {
+        id: 'b3',
+        username: 'VoiceActor99',
+        audioUri: 'mock-audio-3',
+        duration: 20,
+        timestamp: '2025-10-07T09:00:00Z',
+        votes: 15,
+      },
+    ],
+    maxBlocks: 10,
+    status: 'active',
+    category: 'Mystery',
+    totalDuration: 60,
+  },
+  {
+    id: '2',
+    title: 'Space Colony Alpha',
+    coverArt: '🚀',
+    blocks: [
+      {
+        id: 'b4',
+        username: 'SciFiLover',
+        audioUri: 'mock-audio-4',
+        duration: 25,
+        timestamp: '2025-10-05T14:00:00Z',
+        votes: 20,
+      },
+      {
+        id: 'b5',
+        username: 'CosmicTales',
+        audioUri: 'mock-audio-5',
+        duration: 19,
+        timestamp: '2025-10-06T10:30:00Z',
+        votes: 18,
+      },
+    ],
+    maxBlocks: 10,
+    status: 'active',
+    category: 'Sci-Fi',
+    totalDuration: 44,
+  },
+  {
+    id: '3',
+    title: 'Enchanted Forest Quest',
+    coverArt: '🌲',
+    blocks: [
+      {
+        id: 'b6',
+        username: 'FantasyFan',
+        audioUri: 'mock-audio-6',
+        duration: 23,
+        timestamp: '2025-10-04T16:00:00Z',
+        votes: 10,
+      },
+      {
+        id: 'b7',
+        username: 'MagicVoice',
+        audioUri: 'mock-audio-7',
+        duration: 21,
+        timestamp: '2025-10-05T11:00:00Z',
+        votes: 14,
+      },
+      {
+        id: 'b8',
+        username: 'EpicNarrator',
+        audioUri: 'mock-audio-8',
+        duration: 24,
+        timestamp: '2025-10-06T15:45:00Z',
+        votes: 16,
+      },
+      {
+        id: 'b9',
+        username: 'DragonTamer',
+        audioUri: 'mock-audio-9',
+        duration: 20,
+        timestamp: '2025-10-07T08:30:00Z',
+        votes: 19,
+      },
+    ],
+    maxBlocks: 10,
+    status: 'active',
+    category: 'Fantasy',
+    totalDuration: 88,
+  },
+];
+
+export const mockBadges: Badge[] = [
+  {
+    id: 'badge1',
+    name: 'First Story',
+    description: 'Record your first voice story',
+    icon: '🎤',
+    unlocked: false,
+  },
+  {
+    id: 'badge2',
+    name: 'First Vote',
+    description: 'Cast your first vote',
+    icon: '🗳️',
+    unlocked: false,
+  },
+  {
+    id: 'badge3',
+    name: 'Story Sealer',
+    description: 'Complete your first story chain',
+    icon: '🔒',
+    unlocked: false,
+  },
+  {
+    id: 'badge4',
+    name: 'Chain Master',
+    description: 'Contribute to 5 different stories',
+    icon: '⛓️',
+    unlocked: false,
+  },
+  {
+    id: 'badge5',
+    name: 'Voice Legend',
+    description: 'Reach level 10',
+    icon: '👑',
+    unlocked: false,
+  },
+];
+
+export const defaultUser: User = {
+  username: '',
+  xp: 0,
+  level: 1,
+  totalVotes: 0,
+  totalRecordings: 0,
+  badges: mockBadges,
+  contributedStories: [],
+};
