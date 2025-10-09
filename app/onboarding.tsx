@@ -2,16 +2,15 @@ import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   Dimensions,
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Mic, Link, Award } from 'lucide-react-native';
-import { theme } from '../constants/theme';
+import { Mic, Link, Award, UserPlus, LogIn } from 'lucide-react-native';
 import { Button } from '../components/Button';
 import { useAppStore } from '../store/useAppStore';
 import { defaultUser, mockBadges } from '../utils/mockData';
@@ -29,7 +28,8 @@ const slides = [
     id: '2',
     icon: Link,
     title: 'Chain Stories Together',
-    description: 'Each voice memo becomes a new block in a collaborative story chain',
+    description:
+      'Each voice memo becomes a new block in a collaborative story chain',
   },
   {
     id: '3',
@@ -46,7 +46,8 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const { setUser, setHasCompletedOnboarding } = useAppStore();
 
-  const isLastSlide = currentIndex === slides.length;
+  const isAuthSlide = currentIndex === slides.length;
+  const isUsernameSlide = currentIndex === slides.length + 1;
 
   const handleNext = () => {
     if (currentIndex < slides.length) {
@@ -55,12 +56,37 @@ export default function OnboardingScreen() {
     }
   };
 
+  const handleLogin = () => {
+    // TODO: Implement login flow later
+    // For now, just navigate to username slide
+    flatListRef.current?.scrollToIndex({ index: slides.length + 1 });
+    setCurrentIndex(slides.length + 1);
+  };
+
   const handleGetStarted = () => {
     if (username.trim()) {
+      // Generate mock wallet data
+      const randomWalletAddress = `SP${Math.random()
+        .toString(36)
+        .substring(2, 15)
+        .toUpperCase()}${Math.random()
+        .toString(36)
+        .substring(2, 9)
+        .toUpperCase()}`;
+      const randomPrivateKey = Array.from({ length: 64 }, () =>
+        Math.floor(Math.random() * 16).toString(16)
+      ).join('');
+      const randomBalance = Math.floor(Math.random() * 100) + 10;
+
       const newUser = {
         ...defaultUser,
         username: username.trim(),
         badges: mockBadges,
+        walletAddress: randomWalletAddress,
+        privateKey: randomPrivateKey,
+        walletBalance: randomBalance,
+        profileIcon: '👤',
+        nfts: [],
       };
       setUser(newUser);
       setHasCompletedOnboarding(true);
@@ -68,30 +94,76 @@ export default function OnboardingScreen() {
     }
   };
 
-  const renderSlide = ({ item }: { item: typeof slides[0] }) => {
+  const renderSlide = ({ item }: { item: (typeof slides)[0] }) => {
     const Icon = item.icon;
     return (
-      <View style={styles.slide}>
-        <View style={styles.iconContainer}>
-          <Icon size={80} color={theme.colors.primary} strokeWidth={1.5} />
+      <View
+        className="flex-1 justify-center items-center px-xl"
+        style={{ width }}
+      >
+        <View className="w-40 h-40 rounded-full bg-card justify-center items-center mb-xl border-2 border-primary">
+          <Icon size={80} color="#FF2E63" strokeWidth={1.5} />
         </View>
-        <Text style={styles.title}>{item.title}</Text>
-        <Text style={styles.description}>{item.description}</Text>
+        <Text className="text-h1 text-text-primary text-center mb-md">
+          {item.title}
+        </Text>
+        <Text className="text-body text-text-secondary text-center leading-6">
+          {item.description}
+        </Text>
       </View>
     );
   };
 
-  const renderUsernameSlide = () => (
-    <View style={styles.slide}>
-      <View style={styles.iconContainer}>
-        <Text style={styles.emoji}>🎤</Text>
+  const renderAuthSlide = () => (
+    <View
+      className="flex-1 justify-center items-center px-xl"
+      style={{ width }}
+    >
+      <View className="w-full h-50 justify-center items-center mb-xl">
+        <Image
+          source={require('../assets/images/Logo.png')}
+          className="w-64 h-40"
+          resizeMode="contain"
+        />
       </View>
-      <Text style={styles.title}>Choose Your Name</Text>
-      <Text style={styles.description}>What should we call you?</Text>
+      <Text className="text-h1 text-text-primary text-center mb-md">
+        Welcome to SoniChain
+      </Text>
+      <Text className="text-body text-text-secondary text-center leading-6">
+        Join our community of storytellers and start creating collaborative
+        voice stories
+      </Text>
+
+      <View className="w-full mt-xl gap-md">
+        <Button
+          title="Login"
+          onPress={handleLogin}
+          size="large"
+          variant="outline"
+          className="w-full hover:bg-primary hover:text-white"
+        />
+      </View>
+    </View>
+  );
+
+  const renderUsernameSlide = () => (
+    <View
+      className="flex-1 justify-center items-center px-xl"
+      style={{ width }}
+    >
+      <View className="w-40 h-40 rounded-full bg-card justify-center items-center mb-xl border-2 border-primary">
+        <Text className="text-7xl">🎤</Text>
+      </View>
+      <Text className="text-h1 text-text-primary text-center mb-md">
+        Choose Your Name
+      </Text>
+      <Text className="text-body text-text-secondary text-center leading-6">
+        What should we call you?
+      </Text>
       <TextInput
-        style={styles.input}
+        className="w-full bg-card rounded-md px-md py-md mt-xl text-text-primary text-lg border-2 border-border"
         placeholder="Enter username"
-        placeholderTextColor={theme.colors.textSecondary}
+        placeholderTextColor="#D4A5B8"
         value={username}
         onChangeText={setUsername}
         autoCapitalize="none"
@@ -102,124 +174,54 @@ export default function OnboardingScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      className="flex-1 bg-background"
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <FlatList
         ref={flatListRef}
-        data={[...slides, { id: 'username' }]}
-        renderItem={({ item }) =>
-          item.id === 'username' ? renderUsernameSlide() : renderSlide({ item: item as any })
-        }
+        data={[...slides, { id: 'auth' }, { id: 'username' }]}
+        renderItem={({ item }) => {
+          if (item.id === 'auth') return renderAuthSlide();
+          if (item.id === 'username') return renderUsernameSlide();
+          return renderSlide({ item: item as any });
+        }}
         keyExtractor={(item) => item.id}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         scrollEnabled={false}
-        contentContainerStyle={styles.flatListContent}
+        contentContainerStyle={{ flexGrow: 1 }}
       />
 
-      <View style={styles.footer}>
-        <View style={styles.pagination}>
-          {[...slides, { id: 'username' }].map((_, index) => (
+      <View className="p-xl pb-xxl">
+        <View className="flex-row justify-center items-center mb-lg gap-sm">
+          {[...slides, { id: 'auth' }, { id: 'username' }].map((_, index) => (
             <View
               key={index}
-              style={[styles.dot, index === currentIndex && styles.activeDot]}
+              className={`h-2 rounded-full ${
+                index === currentIndex ? 'w-6 bg-primary' : 'w-2 bg-border'
+              }`}
             />
           ))}
         </View>
 
-        {isLastSlide ? (
+        {isUsernameSlide ? (
           <Button
             title="Get Started"
             onPress={handleGetStarted}
             disabled={!username.trim()}
             size="large"
-            style={styles.button}
+            className="w-full"
           />
-        ) : (
-          <Button title="Next" onPress={handleNext} size="large" style={styles.button} />
-        )}
+        ) : !isAuthSlide ? (
+          <Button
+            title="Next"
+            onPress={handleNext}
+            size="large"
+            className="w-full"
+          />
+        ) : null}
       </View>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  flatListContent: {
-    flexGrow: 1,
-  },
-  slide: {
-    width,
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.xl,
-  },
-  iconContainer: {
-    width: 160,
-    height: 160,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.cardBackground,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: theme.spacing.xl,
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-  },
-  emoji: {
-    fontSize: 80,
-  },
-  title: {
-    ...theme.typography.h1,
-    color: theme.colors.text,
-    textAlign: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  description: {
-    ...theme.typography.body,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  input: {
-    width: '100%',
-    backgroundColor: theme.colors.cardBackground,
-    borderRadius: theme.borderRadius.md,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-    marginTop: theme.spacing.xl,
-    color: theme.colors.text,
-    fontSize: 18,
-    borderWidth: 2,
-    borderColor: theme.colors.border,
-  },
-  footer: {
-    padding: theme.spacing.xl,
-    paddingBottom: theme.spacing.xxl,
-  },
-  pagination: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: theme.spacing.lg,
-    gap: theme.spacing.sm,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.border,
-  },
-  activeDot: {
-    width: 24,
-    backgroundColor: theme.colors.primary,
-  },
-  button: {
-    width: '100%',
-  },
-});

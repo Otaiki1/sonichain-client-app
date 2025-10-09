@@ -1,20 +1,25 @@
 {
   "expo": {
-    "name": "EchoChain",
-    "slug": "echochain",
+    "name": "SoniChain",
+    "slug": "sonichain",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/Logo.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/Logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1A0E14"
+    },
     "ios": {
       "supportsTablet": true
     },
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/Logo.png"
     },
     "plugins": ["expo-router", "expo-font", "expo-web-browser"],
     "experiments": {

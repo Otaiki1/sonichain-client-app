@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useAppStore } from '@/store/useAppStore';
+import '../global.css';
 
 export default function RootLayout() {
   useFrameworkReady();

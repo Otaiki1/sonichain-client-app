@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { theme } from '../constants/theme';
+import { View, Text } from 'react-native';
 
 interface XPBarProps {
   xp: number;
@@ -12,56 +11,23 @@ export const XPBar: React.FC<XPBarProps> = ({ xp, level }) => {
   const progress = xpInCurrentLevel;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.levelBadge}>
-        <Text style={styles.levelText}>LVL {level}</Text>
+    <View className="flex-row items-center gap-md">
+      <View className="bg-secondary px-md py-sm rounded-md">
+        <Text className="text-body text-text-primary font-bold">
+          LVL {level}
+        </Text>
       </View>
-      <View style={styles.barContainer}>
-        <View style={styles.bar}>
-          <View style={[styles.fill, { width: `${progress}%` }]} />
+      <View className="flex-1">
+        <View className="h-3 bg-border rounded-full overflow-hidden">
+          <View
+            className="h-full bg-primary rounded-full"
+            style={{ width: `${progress}%` }}
+          />
         </View>
-        <Text style={styles.xpText}>
+        <Text className="text-small text-text-secondary mt-xs">
           {xpInCurrentLevel}/100 XP
         </Text>
       </View>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-  },
-  levelBadge: {
-    backgroundColor: theme.colors.secondary,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-  },
-  levelText: {
-    ...theme.typography.body,
-    color: theme.colors.text,
-    fontWeight: '700',
-  },
-  barContainer: {
-    flex: 1,
-  },
-  bar: {
-    height: 12,
-    backgroundColor: theme.colors.border,
-    borderRadius: theme.borderRadius.full,
-    overflow: 'hidden',
-  },
-  fill: {
-    height: '100%',
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.full,
-  },
-  xpText: {
-    ...theme.typography.small,
-    color: theme.colors.textSecondary,
-    marginTop: theme.spacing.xs,
-  },
-});

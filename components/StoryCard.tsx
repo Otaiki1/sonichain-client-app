@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { theme } from '../constants/theme';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { Clock, Coins } from 'lucide-react-native';
 import { StoryChain } from '../types';
 
 interface StoryCardProps {
@@ -13,106 +13,78 @@ export const StoryCard: React.FC<StoryCardProps> = ({ story, onPress }) => {
   const progressTime = (story.totalDuration / 120) * 100;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      <View style={styles.header}>
-        <Text style={styles.coverArt}>{story.coverArt}</Text>
-        <View style={styles.info}>
-          <Text style={styles.title}>{story.title}</Text>
-          <Text style={styles.category}>{story.category}</Text>
+    <TouchableOpacity
+      className="bg-card rounded-lg p-md mb-md border border-border"
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View className="flex-row items-center mb-md">
+        <Text className="text-5xl mr-md">{story.coverArt}</Text>
+        <View className="flex-1">
+          <Text className="text-h3 text-text-primary mb-xs font-semibold">
+            {story.title}
+          </Text>
+          <Text className="text-caption text-text-secondary">
+            {story.category}
+          </Text>
+          {story.description && (
+            <Text
+              className="text-caption text-text-secondary mt-xs"
+              numberOfLines={2}
+            >
+              {story.description}
+            </Text>
+          )}
         </View>
         {story.status === 'sealed' && (
-          <View style={styles.sealedBadge}>
-            <Text style={styles.sealedText}>🔒 SEALED</Text>
+          <View className="bg-accent px-sm py-xs rounded-sm">
+            <Text className="text-small text-text-primary font-bold">
+              🔒 SEALED
+            </Text>
           </View>
         )}
       </View>
 
-      <View style={styles.statsContainer}>
-        <Text style={styles.stats}>
-          {story.blocks.length}/{story.maxBlocks} blocks • {story.totalDuration}s
+      {/* Bounty and Voting Window Info */}
+      {(story.bountyStx || story.votingWindowHours) && (
+        <View className="flex-row gap-md mb-sm flex-wrap">
+          {story.bountyStx && (
+            <View className="flex-row items-center bg-secondary/20 px-sm py-xs rounded-md">
+              <Coins size={14} color="#FF6B9D" />
+              <Text className="text-small text-secondary font-bold ml-xs">
+                {story.bountyStx} STX
+              </Text>
+            </View>
+          )}
+          {story.votingWindowHours && (
+            <View className="flex-row items-center bg-primary/20 px-sm py-xs rounded-md">
+              <Clock size={14} color="#FF2E63" />
+              <Text className="text-small text-primary font-bold ml-xs">
+                {story.votingWindowHours}h voting
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      <View className="mb-sm">
+        <Text className="text-caption text-text-secondary">
+          {story.blocks.length}/{story.maxBlocks} blocks • {story.totalDuration}
+          s
         </Text>
       </View>
 
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${Math.min(progress, 100)}%` }]} />
+      <View className="flex-row items-center gap-sm">
+        <View className="flex-1 h-2 bg-border rounded-full overflow-hidden">
+          <View
+            className="h-full bg-primary rounded-full"
+            style={{ width: `${Math.min(progress, 100)}%` }}
+          />
         </View>
-        <Text style={styles.progressText}>{Math.round(progress)}%</Text>
+        <Text className="text-small text-primary font-bold w-10 text-right">
+          {Math.round(progress)}%
+        </Text>
       </View>
     </TouchableOpacity>
   );
 };
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: theme.colors.cardBackground,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  coverArt: {
-    fontSize: 48,
-    marginRight: theme.spacing.md,
-  },
-  info: {
-    flex: 1,
-  },
-  title: {
-    ...theme.typography.h3,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
-  },
-  category: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-  },
-  sealedBadge: {
-    backgroundColor: theme.colors.accent,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
-  },
-  sealedText: {
-    ...theme.typography.small,
-    color: theme.colors.text,
-    fontWeight: '700',
-  },
-  statsContainer: {
-    marginBottom: theme.spacing.sm,
-  },
-  stats: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: theme.colors.border,
-    borderRadius: theme.borderRadius.full,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.full,
-  },
-  progressText: {
-    ...theme.typography.small,
-    color: theme.colors.primary,
-    fontWeight: '700',
-    width: 40,
-    textAlign: 'right',
-  },
-});

@@ -8,7 +8,7 @@ import {
   Animated,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Clock, Coins } from 'lucide-react-native';
 import { theme } from '../../constants/theme';
 import { WaveformCard } from '../../components/WaveformCard';
 import { Button } from '../../components/Button';
@@ -32,9 +32,13 @@ const mockSubmissions = [
 export default function VotingScreen() {
   const router = useRouter();
   const { storyId } = useLocalSearchParams();
-  const { user, updateUser, addXP, unlockBadge } = useAppStore();
+  const { user, updateUser, addXP, unlockBadge, storyChains } = useAppStore();
 
-  const [selectedSubmission, setSelectedSubmission] = useState<string | null>(null);
+  const story = storyChains.find((s) => s.id === storyId);
+
+  const [selectedSubmission, setSelectedSubmission] = useState<string | null>(
+    null
+  );
   const [hasVoted, setHasVoted] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -93,6 +97,34 @@ export default function VotingScreen() {
       <View style={styles.content}>
         {!showResults ? (
           <>
+            {/* Story Context Info */}
+            {story && (story.votingWindowHours || story.bountyStx) && (
+              <View style={styles.storyContext}>
+                {story.votingWindowHours && (
+                  <View style={styles.contextCard}>
+                    <Clock size={18} color={theme.colors.primary} />
+                    <View style={styles.contextInfo}>
+                      <Text style={styles.contextLabel}>Voting Window</Text>
+                      <Text style={styles.contextValue}>
+                        {story.votingWindowHours} hours
+                      </Text>
+                    </View>
+                  </View>
+                )}
+                {story.bountyStx && (
+                  <View style={styles.contextCard}>
+                    <Coins size={18} color={theme.colors.secondary} />
+                    <View style={styles.contextInfo}>
+                      <Text style={styles.contextLabel}>Bounty Reward</Text>
+                      <Text style={styles.contextValue}>
+                        {story.bountyStx} STX
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+
             <View style={styles.instructionContainer}>
               <Text style={styles.instruction}>
                 Listen to both submissions and vote for your favorite!
@@ -121,7 +153,9 @@ export default function VotingScreen() {
                     }}
                     isPlaying={playingId === submission.id}
                     onPlayPress={() =>
-                      setPlayingId(playingId === submission.id ? null : submission.id)
+                      setPlayingId(
+                        playingId === submission.id ? null : submission.id
+                      )
                     }
                   />
                   {selectedSubmission === submission.id && (
@@ -140,13 +174,16 @@ export default function VotingScreen() {
                 disabled={!selectedSubmission || hasVoted}
                 loading={hasVoted && !showResults}
                 size="large"
-                style={styles.voteButton}
+                className="w-full"
               />
             </View>
           </>
         ) : (
           <Animated.View
-            style={[styles.resultsContainer, { transform: [{ scale: scaleAnim }] }]}
+            style={[
+              styles.resultsContainer,
+              { transform: [{ scale: scaleAnim }] },
+            ]}
           >
             <Text style={styles.resultsEmoji}>🎉</Text>
             <Text style={styles.resultsTitle}>Vote Submitted!</Text>
@@ -232,6 +269,36 @@ const styles = StyleSheet.create({
   },
   voteButton: {
     width: '100%',
+  },
+  storyContext: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+  },
+  contextCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.cardBackground,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    gap: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  contextInfo: {
+    flex: 1,
+  },
+  contextLabel: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.xs,
+  },
+  contextValue: {
+    ...theme.typography.body,
+    color: theme.colors.text,
+    fontWeight: '700',
   },
   resultsContainer: {
     flex: 1,

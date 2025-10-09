@@ -26,7 +26,9 @@ export default function StorySealedScreen() {
   useEffect(() => {
     addXP(50);
 
-    const sealedStoriesCount = storyChains.filter((s) => s.status === 'sealed').length;
+    const sealedStoriesCount = storyChains.filter(
+      (s) => s.status === 'sealed'
+    ).length;
     if (sealedStoriesCount >= 1 && user) {
       unlockBadge('badge3');
     }
@@ -61,7 +63,7 @@ export default function StorySealedScreen() {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Check out this completed story chain "${story?.title}" on EchoChain!`,
+        message: `Check out this completed story chain "${story?.title}" on SoniChain!`,
       });
     } catch (error) {
       console.error('Error sharing:', error);
@@ -133,7 +135,10 @@ export default function StorySealedScreen() {
 
               const translateX = animValue.interpolate({
                 inputRange: [0, 1],
-                outputRange: [Math.random() * 40 - 20, Math.random() * 200 - 100],
+                outputRange: [
+                  Math.random() * 40 - 20,
+                  Math.random() * 200 - 100,
+                ],
               });
 
               const leftPosition = `${Math.random() * 100}%`;
@@ -166,14 +171,14 @@ export default function StorySealedScreen() {
           onPress={handleViewStory}
           variant="primary"
           size="large"
-          style={styles.button}
+          className="w-full"
         />
         <Button
           title="Share"
           onPress={handleShare}
           variant="outline"
           size="large"
-          style={styles.button}
+          className="w-full"
         />
       </View>
     </SafeAreaView>

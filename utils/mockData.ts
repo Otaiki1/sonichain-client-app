@@ -4,6 +4,8 @@ export const mockStoryChains: StoryChain[] = [
   {
     id: '1',
     title: 'The Midnight Detective',
+    description:
+      'A noir mystery unfolds in the shadows of the city. Follow Detective Blake as she uncovers secrets that were meant to stay hidden.',
     coverArt: '🕵️',
     blocks: [
       {
@@ -35,10 +37,14 @@ export const mockStoryChains: StoryChain[] = [
     status: 'active',
     category: 'Mystery',
     totalDuration: 60,
+    bountyStx: 5.5,
+    votingWindowHours: 48,
   },
   {
     id: '2',
     title: 'Space Colony Alpha',
+    description:
+      "Year 2147. Humanity's first deep space colony faces an existential threat. Only the crew of the Endeavor stands between survival and extinction.",
     coverArt: '🚀',
     blocks: [
       {
@@ -62,10 +68,14 @@ export const mockStoryChains: StoryChain[] = [
     status: 'active',
     category: 'Sci-Fi',
     totalDuration: 44,
+    bountyStx: 10.0,
+    votingWindowHours: 24,
   },
   {
     id: '3',
     title: 'Enchanted Forest Quest',
+    description:
+      'An ancient forest holds magical secrets. When a young wanderer stumbles upon a hidden path, their adventure begins.',
     coverArt: '🌲',
     blocks: [
       {
@@ -105,6 +115,7 @@ export const mockStoryChains: StoryChain[] = [
     status: 'active',
     category: 'Fantasy',
     totalDuration: 88,
+    votingWindowHours: 72,
   },
 ];
 
@@ -154,4 +165,9 @@ export const defaultUser: User = {
   totalRecordings: 0,
   badges: mockBadges,
   contributedStories: [],
+  walletAddress: '',
+  walletBalance: 0,
+  privateKey: '',
+  profileIcon: '👤',
+  nfts: [],
 };

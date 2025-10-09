@@ -27,7 +27,7 @@ export default function RecordScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     if (isRecording) {
       interval = setInterval(() => {
         setRecordingDuration((prev) => {
@@ -54,7 +54,10 @@ export default function RecordScreen() {
     try {
       const permission = await Audio.requestPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Permission required', 'Please grant microphone access to record.');
+        Alert.alert(
+          'Permission required',
+          'Please grant microphone access to record.'
+        );
         return;
       }
 
@@ -101,7 +104,9 @@ export default function RecordScreen() {
         await sound.playAsync();
         setIsPlaying(true);
       } else {
-        const { sound: newSound } = await Audio.Sound.createAsync({ uri: recordedUri });
+        const { sound: newSound } = await Audio.Sound.createAsync({
+          uri: recordedUri,
+        });
         setSound(newSound);
         await newSound.playAsync();
         setIsPlaying(true);
@@ -201,7 +206,9 @@ export default function RecordScreen() {
                       styles.waveBar,
                       {
                         height: Math.random() * 60 + 20,
-                        backgroundColor: isPlaying ? theme.colors.primary : theme.colors.border,
+                        backgroundColor: isPlaying
+                          ? theme.colors.primary
+                          : theme.colors.border,
                       },
                     ]}
                   />
@@ -213,22 +220,35 @@ export default function RecordScreen() {
           <View style={styles.controls}>
             {!recordedUri ? (
               <TouchableOpacity
-                style={[styles.recordButton, isRecording && styles.recordingActive]}
+                style={[
+                  styles.recordButton,
+                  isRecording && styles.recordingActive,
+                ]}
                 onPress={isRecording ? stopRecording : startRecording}
                 activeOpacity={0.8}
               >
                 {isRecording ? (
-                  <Square size={32} color={theme.colors.text} fill={theme.colors.text} />
+                  <Square
+                    size={32}
+                    color={theme.colors.text}
+                    fill={theme.colors.text}
+                  />
                 ) : (
                   <Mic size={32} color={theme.colors.text} />
                 )}
               </TouchableOpacity>
             ) : (
               <View style={styles.playbackControls}>
-                <TouchableOpacity style={styles.iconButton} onPress={handleReset}>
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={handleReset}
+                >
                   <RotateCcw size={24} color={theme.colors.text} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.playButton} onPress={playRecording}>
+                <TouchableOpacity
+                  style={styles.playButton}
+                  onPress={playRecording}
+                >
                   <Play
                     size={32}
                     color={theme.colors.text}
@@ -253,7 +273,7 @@ export default function RecordScreen() {
             title="Submit Recording"
             onPress={handleSubmit}
             size="large"
-            style={styles.submitButton}
+            className="w-full"
           />
         </View>
       )}

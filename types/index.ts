@@ -10,12 +10,18 @@ export interface VoiceBlock {
 export interface StoryChain {
   id: string;
   title: string;
+  description?: string;
   coverArt: string;
   blocks: VoiceBlock[];
   maxBlocks: number;
-  status: 'active' | 'sealed';
+  status: 'active' | 'sealed' | 'finalized';
   category: string;
   totalDuration: number;
+  bountyStx?: number;
+  votingWindowHours?: number;
+  creatorUsername?: string;
+  nftMinted?: boolean;
+  nftId?: string;
 }
 
 export interface User {
@@ -26,6 +32,11 @@ export interface User {
   totalRecordings: number;
   badges: Badge[];
   contributedStories: string[];
+  walletAddress?: string;
+  walletBalance?: number;
+  privateKey?: string;
+  profileIcon?: string;
+  nfts?: NFT[];
 }
 
 export interface Badge {
@@ -44,4 +55,15 @@ export interface VotingSubmission {
   audioUri: string;
   duration: number;
   votes: number;
+}
+
+export interface NFT {
+  id: string;
+  storyId: string;
+  storyTitle: string;
+  coverArt: string;
+  mintedTo: string;
+  mintedBy: string;
+  mintedAt: string;
+  audioUri?: string;
 }

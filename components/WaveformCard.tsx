@@ -1,7 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Play, Pause } from 'lucide-react-native';
-import { theme } from '../constants/theme';
 import { VoiceBlock } from '../types';
 
 interface WaveformCardProps {
@@ -22,94 +21,48 @@ export const WaveformCard: React.FC<WaveformCardProps> = ({
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.playButton} onPress={onPlayPress} activeOpacity={0.7}>
+    <View className="flex-row bg-card rounded-md p-md mb-md border border-border">
+      <TouchableOpacity
+        className="w-11 h-11 rounded-full bg-primary items-center justify-center mr-md"
+        onPress={onPlayPress}
+        activeOpacity={0.7}
+      >
         {isPlaying ? (
-          <Pause size={20} color={theme.colors.text} fill={theme.colors.text} />
+          <Pause size={20} color="#FFFFFF" fill="#FFFFFF" />
         ) : (
-          <Play size={20} color={theme.colors.text} fill={theme.colors.text} />
+          <Play size={20} color="#FFFFFF" fill="#FFFFFF" />
         )}
       </TouchableOpacity>
 
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.username}>{block.username}</Text>
-          <Text style={styles.duration}>{formatDuration(block.duration)}</Text>
+      <View className="flex-1">
+        <View className="flex-row justify-between items-center mb-sm">
+          <Text className="text-body text-text-primary font-semibold">
+            {block.username}
+          </Text>
+          <Text className="text-caption text-text-secondary">
+            {formatDuration(block.duration)}
+          </Text>
         </View>
 
-        <View style={styles.waveformContainer}>
+        <View className="flex-row items-center gap-0.5 h-10">
           {Array.from({ length: 40 }).map((_, i) => (
             <View
               key={i}
-              style={[
-                styles.waveformBar,
-                {
-                  height: Math.random() * 30 + 10,
-                  backgroundColor: isPlaying && i < 20 ? theme.colors.primary : theme.colors.border,
-                },
-              ]}
+              className="flex-1 rounded-sm"
+              style={{
+                height: Math.random() * 30 + 10,
+                backgroundColor: isPlaying && i < 20 ? '#FF2E63' : '#3D1F2E',
+              }}
             />
           ))}
         </View>
 
         {block.votes !== undefined && (
-          <Text style={styles.votes}>❤️ {block.votes} votes</Text>
+          <Text className="text-caption text-text-secondary mt-sm">
+            ❤️ {block.votes} votes
+          </Text>
         )}
       </View>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.cardBackground,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  playButton: {
-    width: 44,
-    height: 44,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: theme.spacing.md,
-  },
-  content: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  username: {
-    ...theme.typography.body,
-    color: theme.colors.text,
-    fontWeight: '600',
-  },
-  duration: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-  },
-  waveformContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    height: 40,
-  },
-  waveformBar: {
-    flex: 1,
-    borderRadius: 2,
-  },
-  votes: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-    marginTop: theme.spacing.sm,
-  },
-});

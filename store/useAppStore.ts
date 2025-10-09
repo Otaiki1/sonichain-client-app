@@ -9,7 +9,7 @@ interface AppState {
   hasCompletedOnboarding: boolean;
   isLoading: boolean;
 
-  setUser: (user: User) => void;
+  setUser: (user: User | null) => void;
   updateUser: (updates: Partial<User>) => void;
   addXP: (amount: number) => void;
   unlockBadge: (badgeId: string) => void;
@@ -19,6 +19,7 @@ interface AppState {
   addVoiceBlock: (storyId: string, block: any) => void;
   initializeData: () => Promise<void>;
   saveData: () => Promise<void>;
+  resetData: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -102,8 +103,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       storyChains: state.storyChains.map((chain) => {
         if (chain.id === storyId) {
           const newBlocks = [...chain.blocks, block];
-          const newTotalDuration = newBlocks.reduce((sum, b) => sum + b.duration, 0);
-          const shouldSeal = newBlocks.length >= chain.maxBlocks || newTotalDuration >= 120;
+          const newTotalDuration = newBlocks.reduce(
+            (sum, b) => sum + b.duration,
+            0
+          );
+          const shouldSeal =
+            newBlocks.length >= chain.maxBlocks || newTotalDuration >= 120;
 
           return {
             ...chain,
@@ -121,12 +126,36 @@ export const useAppStore = create<AppState>((set, get) => ({
   initializeData: async () => {
     try {
       const userJson = await AsyncStorage.getItem('user');
-      const onboardingJson = await AsyncStorage.getItem('hasCompletedOnboarding');
+      const onboardingJson = await AsyncStorage.getItem(
+        'hasCompletedOnboarding'
+      );
       const storyChainsJson = await AsyncStorage.getItem('storyChains');
 
       const user = userJson ? JSON.parse(userJson) : null;
       const hasCompletedOnboarding = onboardingJson === 'true';
-      const storyChains = storyChainsJson ? JSON.parse(storyChainsJson) : mockStoryChains;
+
+      let storyChains = storyChainsJson
+        ? JSON.parse(storyChainsJson)
+        : mockStoryChains;
+
+      // Auto-migrate: merge new fields from mock data if missing
+      if (storyChainsJson) {
+        storyChains = storyChains.map((cachedStory: StoryChain) => {
+          const mockStory = mockStoryChains.find(
+            (m) => m.id === cachedStory.id
+          );
+          if (mockStory) {
+            return {
+              ...cachedStory,
+              description: cachedStory.description ?? mockStory.description,
+              bountyStx: cachedStory.bountyStx ?? mockStory.bountyStx,
+              votingWindowHours:
+                cachedStory.votingWindowHours ?? mockStory.votingWindowHours,
+            };
+          }
+          return cachedStory;
+        });
+      }
 
       set({
         user,
@@ -147,10 +176,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (user) {
         await AsyncStorage.setItem('user', JSON.stringify(user));
       }
-      await AsyncStorage.setItem('hasCompletedOnboarding', String(hasCompletedOnboarding));
+      await AsyncStorage.setItem(
+        'hasCompletedOnboarding',
+        String(hasCompletedOnboarding)
+      );
       await AsyncStorage.setItem('storyChains', JSON.stringify(storyChains));
     } catch (error) {
       console.error('Failed to save data:', error);
+    }
+  },
+
+  resetData: async () => {
+    try {
+      await AsyncStorage.clear();
+      set({
+        user: null,
+        storyChains: mockStoryChains,
+        hasCompletedOnboarding: false,
+        isLoading: false,
+      });
+    } catch (error) {
+      console.error('Failed to reset data:', error);
     }
   },
 }));

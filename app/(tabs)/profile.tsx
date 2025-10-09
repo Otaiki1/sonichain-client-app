@@ -1,25 +1,90 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   SafeAreaView,
   TouchableOpacity,
+  Modal,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { theme } from '../../constants/theme';
+import {
+  LogOut,
+  Copy,
+  Eye,
+  EyeOff,
+  Wallet,
+  Image as ImageIcon,
+  CheckCircle,
+} from 'lucide-react-native';
 import { XPBar } from '../../components/XPBar';
+import { Button } from '../../components/Button';
 import { useAppStore } from '../../store/useAppStore';
+
+const PROFILE_ICONS = [
+  '👤',
+  '😀',
+  '🎭',
+  '🎨',
+  '🎮',
+  '🎸',
+  '🚀',
+  '🌟',
+  '⚡',
+  '🔥',
+  '💎',
+  '👑',
+  '🦄',
+  '🐉',
+  '🦊',
+  '🐺',
+];
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, storyChains } = useAppStore();
+  const {
+    user,
+    storyChains,
+    setUser,
+    setHasCompletedOnboarding,
+    resetData,
+    updateUser,
+  } = useAppStore();
+
+  const [showPrivateKey, setShowPrivateKey] = useState(false);
+  const [showPrivateKeyModal, setShowPrivateKeyModal] = useState(false);
+  const [showIconPicker, setShowIconPicker] = useState(false);
+
+  const handleLogout = () => {
+    setUser(null);
+    setHasCompletedOnboarding(false);
+    router.replace('/onboarding');
+  };
+
+  const handleResetData = async () => {
+    await resetData();
+    router.replace('/onboarding');
+  };
+
+  const copyToClipboard = (text: string, type: string) => {
+    Alert.alert('Copied!', `${type} copied to clipboard`);
+  };
+
+  const handleIconSelect = (icon: string) => {
+    if (user) {
+      updateUser({ profileIcon: icon });
+      setShowIconPicker(false);
+    }
+  };
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.errorText}>No user data</Text>
+      <SafeAreaView className="flex-1 bg-background">
+        <Text className="text-h2 text-text-primary text-center mt-xxl">
+          No user data
+        </Text>
       </SafeAreaView>
     );
   }
@@ -29,70 +94,158 @@ export default function ProfileScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <View style={styles.avatarContainer}>
-            <Text style={styles.avatar}>👤</Text>
-          </View>
-          <Text style={styles.username}>{user.username}</Text>
+    <SafeAreaView className="flex-1 bg-background">
+      <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>
+        <View className="items-center py-xl px-lg">
+          <TouchableOpacity
+            onPress={() => setShowIconPicker(true)}
+            className="w-24 h-24 rounded-full bg-card justify-center items-center mb-md border-2 border-primary"
+          >
+            <Text className="text-5xl">{user.profileIcon || '👤'}</Text>
+          </TouchableOpacity>
+          <Text className="text-h1 text-text-primary">{user.username}</Text>
         </View>
 
-        <View style={styles.xpSection}>
+        {/* Wallet Section */}
+        <View className="px-lg mb-lg">
+          <View className="bg-gradient-to-r from-primary/20 to-secondary/20 rounded-lg p-md border border-primary/30">
+            <View className="flex-row items-center mb-md">
+              <Wallet size={20} color="#FF2E63" />
+              <Text className="text-body text-text-primary font-bold ml-sm">
+                Stacks Wallet
+              </Text>
+            </View>
+
+            {/* Wallet Address */}
+            <View className="mb-sm">
+              <Text className="text-caption text-text-secondary mb-xs">
+                Wallet Address
+              </Text>
+              <View className="flex-row items-center justify-between bg-background/50 rounded-md px-md py-sm">
+                <Text
+                  className="text-small text-text-primary font-mono flex-1"
+                  numberOfLines={1}
+                >
+                  {user.walletAddress || 'SP2X...7K9M'}
+                </Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    copyToClipboard(
+                      user.walletAddress || 'SP2X...7K9M',
+                      'Wallet address'
+                    )
+                  }
+                  className="ml-sm"
+                >
+                  <Copy size={16} color="#FF6B9D" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Balance */}
+            <View>
+              <Text className="text-caption text-text-secondary mb-xs">
+                Balance
+              </Text>
+              <Text className="text-h2 text-primary font-bold">
+                {user.walletBalance || 0} STX
+              </Text>
+            </View>
+
+            {/* Export Private Key */}
+            <TouchableOpacity
+              onPress={() => setShowPrivateKeyModal(true)}
+              className="mt-md bg-error/20 rounded-md px-md py-sm border border-error/30"
+            >
+              <Text className="text-small text-error font-semibold text-center">
+                🔑 Export Private Key
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View className="px-lg mb-xl">
           <XPBar xp={user.xp} level={user.level} />
         </View>
 
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{user.totalRecordings}</Text>
-            <Text style={styles.statLabel}>Recordings</Text>
+        <View className="flex-row px-lg mb-xl gap-md">
+          <View className="flex-1 bg-card rounded-lg p-md items-center border border-border">
+            <Text className="text-h1 text-primary mb-xs">
+              {user.totalRecordings}
+            </Text>
+            <Text className="text-caption text-text-secondary">Recordings</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{user.totalVotes}</Text>
-            <Text style={styles.statLabel}>Votes Cast</Text>
+          <View className="flex-1 bg-card rounded-lg p-md items-center border border-border">
+            <Text className="text-h1 text-primary mb-xs">
+              {user.totalVotes}
+            </Text>
+            <Text className="text-caption text-text-secondary">Votes Cast</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{contributedStories.length}</Text>
-            <Text style={styles.statLabel}>Stories</Text>
+          <View className="flex-1 bg-card rounded-lg p-md items-center border border-border">
+            <Text className="text-h1 text-primary mb-xs">
+              {contributedStories.length}
+            </Text>
+            <Text className="text-caption text-text-secondary">Stories</Text>
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Badges</Text>
-          <View style={styles.badgesGrid}>
+        <View className="px-lg mb-xl">
+          <Text className="text-h2 text-text-primary mb-md">Badges</Text>
+          <View className="flex-row flex-wrap gap-md">
             {user.badges.map((badge) => (
               <View
                 key={badge.id}
-                style={[styles.badgeCard, !badge.unlocked && styles.badgeLocked]}
+                className={`w-[47%] bg-card rounded-lg p-md items-center ${
+                  badge.unlocked
+                    ? 'border-2 border-primary'
+                    : 'opacity-40 border border-border'
+                }`}
               >
-                <Text style={styles.badgeIcon}>{badge.icon}</Text>
-                <Text style={styles.badgeName}>{badge.name}</Text>
-                <Text style={styles.badgeDescription}>{badge.description}</Text>
-                {badge.unlocked && <Text style={styles.unlockedText}>✓ Unlocked</Text>}
+                <Text className="text-4xl mb-sm">{badge.icon}</Text>
+                <Text className="text-body text-text-primary font-bold text-center mb-xs">
+                  {badge.name}
+                </Text>
+                <Text className="text-small text-text-secondary text-center">
+                  {badge.description}
+                </Text>
+                {badge.unlocked && (
+                  <Text className="text-small text-accent font-bold mt-sm">
+                    ✓ Unlocked
+                  </Text>
+                )}
               </View>
             ))}
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My Chains</Text>
+        <View className="px-lg mb-xl">
+          <Text className="text-h2 text-text-primary mb-md">My Chains</Text>
           {contributedStories.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No contributions yet</Text>
-              <Text style={styles.emptySubtext}>Start recording to see your stories here!</Text>
+            <View className="items-center py-xl">
+              <Text className="text-body text-text-secondary mb-xs">
+                No contributions yet
+              </Text>
+              <Text className="text-caption text-text-secondary">
+                Start recording to see your stories here!
+              </Text>
             </View>
           ) : (
             contributedStories.map((story) => (
               <TouchableOpacity
                 key={story.id}
-                style={styles.storyItem}
+                className="flex-row items-center bg-card rounded-md p-md mb-md border border-border"
                 onPress={() => router.push(`/story/${story.id}`)}
               >
-                <Text style={styles.storyEmoji}>{story.coverArt}</Text>
-                <View style={styles.storyInfo}>
-                  <Text style={styles.storyTitle}>{story.title}</Text>
-                  <Text style={styles.storyMeta}>
-                    {story.blocks.filter((b) => b.username === user.username).length}{' '}
+                <Text className="text-3xl mr-md">{story.coverArt}</Text>
+                <View className="flex-1">
+                  <Text className="text-body text-text-primary font-semibold mb-xs">
+                    {story.title}
+                  </Text>
+                  <Text className="text-caption text-text-secondary">
+                    {
+                      story.blocks.filter((b) => b.username === user.username)
+                        .length
+                    }{' '}
                     contribution(s)
                   </Text>
                 </View>
@@ -100,163 +253,180 @@ export default function ProfileScreen() {
             ))
           )}
         </View>
+
+        {/* NFT Collection */}
+        <View className="px-lg mb-xl">
+          <View className="flex-row items-center mb-md">
+            <ImageIcon size={20} color="#FF4081" />
+            <Text className="text-h2 text-text-primary ml-sm">
+              My NFTs ({(user.nfts || []).length})
+            </Text>
+          </View>
+
+          {(user.nfts || []).length === 0 ? (
+            <View className="bg-card rounded-lg p-xl items-center border border-border">
+              <Text className="text-4xl mb-md">🎨</Text>
+              <Text className="text-body text-text-primary font-semibold mb-xs">
+                No NFTs yet
+              </Text>
+              <Text className="text-caption text-text-secondary text-center">
+                Contribute to stories to earn NFTs
+              </Text>
+            </View>
+          ) : (
+            <View className="flex-row flex-wrap gap-md">
+              {(user.nfts || []).map((nft) => (
+                <View
+                  key={nft.id}
+                  className="w-[47%] bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg p-md border-2 border-primary/50"
+                >
+                  <View className="items-center mb-sm">
+                    <Text className="text-5xl mb-sm">{nft.coverArt}</Text>
+                    <Text className="text-body text-text-primary font-bold text-center mb-xs">
+                      {nft.storyTitle}
+                    </Text>
+                    <Text className="text-caption text-text-secondary text-center">
+                      by {nft.mintedBy}
+                    </Text>
+                  </View>
+                  <View className="flex-row items-center justify-center bg-accent/20 px-sm py-xs rounded-md">
+                    <CheckCircle size={12} color="#FF4081" />
+                    <Text className="text-small text-accent font-bold ml-xs">
+                      Owned
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <View className="px-lg mt-md gap-md">
+          <TouchableOpacity
+            className="flex-row items-center justify-center bg-card rounded-md p-md border border-secondary gap-sm"
+            onPress={handleResetData}
+          >
+            <Text className="text-body text-secondary font-semibold">
+              🔄 Reset All Data
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            className="flex-row items-center justify-center bg-card rounded-md p-md border border-error gap-sm"
+            onPress={handleLogout}
+          >
+            <LogOut size={20} color="#FF4444" />
+            <Text className="text-body text-error font-semibold">Logout</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
+
+      {/* Private Key Modal */}
+      <Modal
+        visible={showPrivateKeyModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowPrivateKeyModal(false)}
+      >
+        <View className="flex-1 justify-center items-center bg-black/80 px-lg">
+          <View className="bg-card rounded-lg p-lg w-full max-w-md border border-error">
+            <Text className="text-h2 text-text-primary mb-md">
+              ⚠️ Private Key
+            </Text>
+            <Text className="text-body text-text-secondary mb-lg">
+              Never share your private key with anyone. It gives full access to
+              your wallet.
+            </Text>
+
+            <View className="bg-background rounded-md p-md mb-md">
+              <View className="flex-row items-center justify-between mb-sm">
+                <Text className="text-caption text-text-secondary">
+                  Your Private Key
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowPrivateKey(!showPrivateKey)}
+                >
+                  {showPrivateKey ? (
+                    <EyeOff size={18} color="#D4A5B8" />
+                  ) : (
+                    <Eye size={18} color="#D4A5B8" />
+                  )}
+                </TouchableOpacity>
+              </View>
+              <Text className="text-small text-text-primary font-mono">
+                {showPrivateKey
+                  ? user.privateKey ||
+                    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+                  : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
+              </Text>
+            </View>
+
+            <View className="flex-row gap-md">
+              <Button
+                title="Copy"
+                onPress={() => {
+                  copyToClipboard(
+                    user.privateKey ||
+                      'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                    'Private key'
+                  );
+                }}
+                variant="primary"
+                size="medium"
+                className="flex-1"
+              />
+              <Button
+                title="Close"
+                onPress={() => {
+                  setShowPrivateKey(false);
+                  setShowPrivateKeyModal(false);
+                }}
+                variant="outline"
+                size="medium"
+                className="flex-1"
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Icon Picker Modal */}
+      <Modal
+        visible={showIconPicker}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowIconPicker(false)}
+      >
+        <View className="flex-1 justify-end bg-black/50">
+          <View className="bg-card rounded-t-3xl p-lg">
+            <Text className="text-h2 text-text-primary mb-lg">
+              Choose Profile Icon
+            </Text>
+            <View className="flex-row flex-wrap gap-md mb-lg">
+              {PROFILE_ICONS.map((icon) => (
+                <TouchableOpacity
+                  key={icon}
+                  onPress={() => handleIconSelect(icon)}
+                  className={`w-16 h-16 items-center justify-center rounded-lg border-2 ${
+                    user.profileIcon === icon
+                      ? 'bg-primary border-primary'
+                      : 'bg-background border-border'
+                  }`}
+                >
+                  <Text className="text-4xl">{icon}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Button
+              title="Cancel"
+              onPress={() => setShowIconPicker(false)}
+              variant="outline"
+              size="medium"
+              className="w-full"
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  scrollContent: {
-    paddingBottom: theme.spacing.xxl,
-  },
-  header: {
-    alignItems: 'center',
-    paddingVertical: theme.spacing.xl,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  avatarContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.cardBackground,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-    borderWidth: 3,
-    borderColor: theme.colors.primary,
-  },
-  avatar: {
-    fontSize: 48,
-  },
-  username: {
-    ...theme.typography.h1,
-    color: theme.colors.text,
-  },
-  xpSection: {
-    paddingHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.xl,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.xl,
-    gap: theme.spacing.md,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: theme.colors.cardBackground,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  statValue: {
-    ...theme.typography.h1,
-    color: theme.colors.primary,
-    marginBottom: theme.spacing.xs,
-  },
-  statLabel: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-  },
-  section: {
-    paddingHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.xl,
-  },
-  sectionTitle: {
-    ...theme.typography.h2,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.md,
-  },
-  badgesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.md,
-  },
-  badgeCard: {
-    width: '47%',
-    backgroundColor: theme.colors.cardBackground,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-  },
-  badgeLocked: {
-    opacity: 0.4,
-    borderColor: theme.colors.border,
-  },
-  badgeIcon: {
-    fontSize: 40,
-    marginBottom: theme.spacing.sm,
-  },
-  badgeName: {
-    ...theme.typography.body,
-    color: theme.colors.text,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: theme.spacing.xs,
-  },
-  badgeDescription: {
-    ...theme.typography.small,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-  },
-  unlockedText: {
-    ...theme.typography.small,
-    color: theme.colors.accent,
-    fontWeight: '700',
-    marginTop: theme.spacing.sm,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: theme.spacing.xl,
-  },
-  emptyText: {
-    ...theme.typography.body,
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.xs,
-  },
-  emptySubtext: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-  },
-  storyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.cardBackground,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  storyEmoji: {
-    fontSize: 32,
-    marginRight: theme.spacing.md,
-  },
-  storyInfo: {
-    flex: 1,
-  },
-  storyTitle: {
-    ...theme.typography.body,
-    color: theme.colors.text,
-    fontWeight: '600',
-    marginBottom: theme.spacing.xs,
-  },
-  storyMeta: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-  },
-  errorText: {
-    ...theme.typography.h2,
-    color: theme.colors.text,
-    textAlign: 'center',
-    marginTop: theme.spacing.xxl,
-  },
-});

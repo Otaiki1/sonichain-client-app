@@ -1,6 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
-import { theme } from '../constants/theme';
+import { TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 
 interface ButtonProps {
   title: string;
@@ -9,8 +8,8 @@ interface ButtonProps {
   size?: 'small' | 'medium' | 'large';
   disabled?: boolean;
   loading?: boolean;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
+  className?: string;
+  textClassName?: string;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -20,85 +19,83 @@ export const Button: React.FC<ButtonProps> = ({
   size = 'medium',
   disabled = false,
   loading = false,
-  style,
-  textStyle,
+  className,
+  textClassName,
 }) => {
+  const getVariantClasses = () => {
+    switch (variant) {
+      case 'primary':
+        return 'bg-primary';
+      case 'secondary':
+        return 'bg-secondary';
+      case 'outline':
+        return 'bg-transparent border-2 border-primary';
+      default:
+        return 'bg-primary';
+    }
+  };
+
+  const getSizeClasses = () => {
+    switch (size) {
+      case 'small':
+        return 'py-sm px-md';
+      case 'medium':
+        return 'py-md px-lg';
+      case 'large':
+        return 'py-lg px-xl';
+      default:
+        return 'py-md px-lg';
+    }
+  };
+
+  const getTextVariantClasses = () => {
+    switch (variant) {
+      case 'primary':
+        return 'text-background';
+      case 'secondary':
+        return 'text-text-primary';
+      case 'outline':
+        return 'text-primary';
+      default:
+        return 'text-background';
+    }
+  };
+
+  const getTextSizeClasses = () => {
+    switch (size) {
+      case 'small':
+        return 'text-sm';
+      case 'medium':
+        return 'text-base';
+      case 'large':
+        return 'text-lg';
+      default:
+        return 'text-base';
+    }
+  };
+
   return (
     <TouchableOpacity
-      style={[
-        styles.button,
-        styles[variant],
-        styles[size],
-        disabled && styles.disabled,
-        style,
-      ]}
+      className={`rounded-md items-center justify-center ${getVariantClasses()} ${getSizeClasses()} ${
+        disabled ? 'opacity-50' : ''
+      } ${className || ''}`}
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.7}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'outline' ? theme.colors.primary : theme.colors.text} />
+        <ActivityIndicator
+          color={variant === 'outline' ? '#FF2E63' : '#FFFFFF'}
+        />
       ) : (
-        <Text style={[styles.text, styles[`${variant}Text`], styles[`${size}Text`], textStyle]}>
+        <Text
+          className={`font-bold ${getTextVariantClasses()} ${getTextSizeClasses()} ${
+            textClassName || ''
+          }`}
+        >
           {title}
         </Text>
       )}
     </TouchableOpacity>
   );
 };
-
-const styles = StyleSheet.create({
-  button: {
-    borderRadius: theme.borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primary: {
-    backgroundColor: theme.colors.primary,
-  },
-  secondary: {
-    backgroundColor: theme.colors.secondary,
-  },
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-  },
-  small: {
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-  },
-  medium: {
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  large: {
-    paddingVertical: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.xl,
-  },
-  disabled: {
-    opacity: 0.5,
-  },
-  text: {
-    fontWeight: '700',
-    color: theme.colors.text,
-  },
-  primaryText: {
-    color: theme.colors.background,
-  },
-  secondaryText: {
-    color: theme.colors.text,
-  },
-  outlineText: {
-    color: theme.colors.primary,
-  },
-  smallText: {
-    fontSize: 14,
-  },
-  mediumText: {
-    fontSize: 16,
-  },
-  largeText: {
-    fontSize: 18,
-  },
-});
