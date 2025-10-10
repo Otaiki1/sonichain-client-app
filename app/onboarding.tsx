@@ -2,17 +2,23 @@ import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
+  StyleSheet,
   FlatList,
   Dimensions,
   TextInput,
   KeyboardAvoidingView,
   Platform,
   Image,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Mic, Link, Award, UserPlus, LogIn } from 'lucide-react-native';
+import { Mic, Link, Award } from 'lucide-react-native';
 import { Button } from '../components/Button';
 import { useAppStore } from '../store/useAppStore';
+import { useWallet } from '../contexts/WalletContext';
 import { defaultUser, mockBadges } from '../utils/mockData';
 
 const { width } = Dimensions.get('window');
@@ -42,12 +48,18 @@ const slides = [
 export default function OnboardingScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [username, setUsername] = useState('');
+  const [mnemonic, setMnemonic] = useState('');
+  const [isCreatingAccount, setIsCreatingAccount] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
   const { setUser, setHasCompletedOnboarding } = useAppStore();
+  const { createNewWallet, loginWithMnemonic, address } = useWallet();
 
   const isAuthSlide = currentIndex === slides.length;
-  const isUsernameSlide = currentIndex === slides.length + 1;
+  const isWalletSlide = currentIndex === slides.length + 1;
+  const isUsernameSlide = currentIndex === slides.length + 2;
 
   const handleNext = () => {
     if (currentIndex < slides.length) {
@@ -56,35 +68,75 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handleLogin = () => {
-    // TODO: Implement login flow later
-    // For now, just navigate to username slide
+  const handleCreateAccount = () => {
+    setIsCreatingAccount(true);
     flatListRef.current?.scrollToIndex({ index: slides.length + 1 });
     setCurrentIndex(slides.length + 1);
   };
 
-  const handleGetStarted = () => {
-    if (username.trim()) {
-      // Generate mock wallet data
-      const randomWalletAddress = `SP${Math.random()
-        .toString(36)
-        .substring(2, 15)
-        .toUpperCase()}${Math.random()
-        .toString(36)
-        .substring(2, 9)
-        .toUpperCase()}`;
-      const randomPrivateKey = Array.from({ length: 64 }, () =>
-        Math.floor(Math.random() * 16).toString(16)
-      ).join('');
-      const randomBalance = Math.floor(Math.random() * 100) + 10;
+  const handleLogin = () => {
+    setIsCreatingAccount(false);
+    flatListRef.current?.scrollToIndex({ index: slides.length + 1 });
+    setCurrentIndex(slides.length + 1);
+  };
 
+  const handleWalletNext = async () => {
+    setIsProcessing(true);
+    setLoadingMessage(
+      isCreatingAccount
+        ? 'Generating secure wallet...'
+        : 'Restoring your wallet...'
+    );
+
+    try {
+      if (isCreatingAccount) {
+        // Generate new wallet
+        setLoadingMessage('Generating 24-word seed phrase...');
+        await new Promise((resolve) => setTimeout(resolve, 500)); // Brief delay for UX
+        await createNewWallet();
+        setLoadingMessage('Deriving wallet address...');
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } else {
+        // Login with mnemonic
+        setLoadingMessage('Validating seed phrase...');
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const success = await loginWithMnemonic(mnemonic);
+        if (!success) {
+          setIsProcessing(false);
+          setLoadingMessage('');
+          Alert.alert(
+            'Invalid Mnemonic',
+            'Please check your seed phrase and try again.'
+          );
+          return;
+        }
+        setLoadingMessage('Restoring wallet data...');
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      setLoadingMessage('Almost there...');
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Move to username slide
+      flatListRef.current?.scrollToIndex({ index: slides.length + 2 });
+      setCurrentIndex(slides.length + 2);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to setup wallet. Please try again.');
+      console.error('Wallet setup error:', error);
+    } finally {
+      setIsProcessing(false);
+      setLoadingMessage('');
+    }
+  };
+
+  const handleGetStarted = () => {
+    if (username.trim() && address) {
       const newUser = {
         ...defaultUser,
         username: username.trim(),
         badges: mockBadges,
-        walletAddress: randomWalletAddress,
-        privateKey: randomPrivateKey,
-        walletBalance: randomBalance,
+        walletAddress: address,
+        walletBalance: 100, // Starting balance
         profileIcon: '👤',
         nfts: [],
       };
@@ -136,14 +188,89 @@ export default function OnboardingScreen() {
 
       <View className="w-full mt-xl gap-md">
         <Button
-          title="Login"
+          title="Create New Account"
+          onPress={handleCreateAccount}
+          size="large"
+          variant="primary"
+          className="w-full"
+        />
+        <Button
+          title="Login with Seed Phrase"
           onPress={handleLogin}
           size="large"
           variant="outline"
-          className="w-full hover:bg-primary hover:text-white"
+          className="w-full"
         />
       </View>
     </View>
+  );
+
+  const renderWalletSlide = () => (
+    <ScrollView
+      contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+      style={{ width }}
+    >
+      <View className="flex-1 justify-center px-xl">
+        <View className="items-center mb-xl">
+          <View className="w-20 h-20 rounded-full bg-primary/20 justify-center items-center mb-md">
+            <Text className="text-5xl">🔐</Text>
+          </View>
+          <Text className="text-h1 text-text-primary text-center mb-md">
+            {isCreatingAccount ? 'Secure Your Wallet' : 'Restore Your Wallet'}
+          </Text>
+          <Text className="text-body text-text-secondary text-center leading-6">
+            {isCreatingAccount
+              ? 'Your wallet will be generated with a seed phrase. Keep it safe!'
+              : 'Enter your 12 or 24 word seed phrase to restore your wallet'}
+          </Text>
+        </View>
+
+        {!isCreatingAccount && (
+          <View className="mb-lg">
+            <Text className="text-body text-text-primary font-semibold mb-sm">
+              Seed Phrase *
+            </Text>
+            <TextInput
+              className="bg-card rounded-md px-md py-lg text-text-primary text-base border-2 border-border"
+              placeholder="Enter your 12 or 24 word seed phrase..."
+              placeholderTextColor="#D4A5B8"
+              value={mnemonic}
+              onChangeText={setMnemonic}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              style={{ minHeight: 120 }}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            <Text className="text-caption text-text-secondary mt-xs">
+              Separate each word with a space
+            </Text>
+          </View>
+        )}
+
+        {isCreatingAccount && (
+          <View className="bg-secondary/20 rounded-lg p-md mb-lg border border-secondary/30">
+            <Text className="text-body text-text-primary font-semibold mb-xs">
+              🔒 Security Notice
+            </Text>
+            <Text className="text-caption text-text-secondary leading-5">
+              Your seed phrase will be shown on the next screen. Write it down
+              and store it safely. You'll need it to recover your wallet.
+            </Text>
+          </View>
+        )}
+
+        <Button
+          title={isCreatingAccount ? 'Generate Wallet' : 'Restore Wallet'}
+          onPress={handleWalletNext}
+          size="large"
+          loading={isProcessing}
+          disabled={!isCreatingAccount && !mnemonic.trim()}
+          className="w-full"
+        />
+      </View>
+    </ScrollView>
   );
 
   const renderUsernameSlide = () => (
@@ -169,6 +296,20 @@ export default function OnboardingScreen() {
         autoCapitalize="none"
         autoCorrect={false}
       />
+
+      {address && (
+        <View className="w-full mt-lg bg-primary/20 rounded-lg p-md border border-primary/30">
+          <Text className="text-caption text-text-secondary mb-xs">
+            Your Wallet Address
+          </Text>
+          <Text
+            className="text-small text-text-primary font-mono"
+            numberOfLines={1}
+          >
+            {address}
+          </Text>
+        </View>
+      )}
     </View>
   );
 
@@ -179,9 +320,10 @@ export default function OnboardingScreen() {
     >
       <FlatList
         ref={flatListRef}
-        data={[...slides, { id: 'auth' }, { id: 'username' }]}
+        data={[...slides, { id: 'auth' }, { id: 'wallet' }, { id: 'username' }]}
         renderItem={({ item }) => {
           if (item.id === 'auth') return renderAuthSlide();
+          if (item.id === 'wallet') return renderWalletSlide();
           if (item.id === 'username') return renderUsernameSlide();
           return renderSlide({ item: item as any });
         }}
@@ -195,7 +337,12 @@ export default function OnboardingScreen() {
 
       <View className="p-xl pb-xxl">
         <View className="flex-row justify-center items-center mb-lg gap-sm">
-          {[...slides, { id: 'auth' }, { id: 'username' }].map((_, index) => (
+          {[
+            ...slides,
+            { id: 'auth' },
+            { id: 'wallet' },
+            { id: 'username' },
+          ].map((_, index) => (
             <View
               key={index}
               className={`h-2 rounded-full ${
@@ -213,7 +360,7 @@ export default function OnboardingScreen() {
             size="large"
             className="w-full"
           />
-        ) : !isAuthSlide ? (
+        ) : !isAuthSlide && !isWalletSlide ? (
           <Button
             title="Next"
             onPress={handleNext}
@@ -222,6 +369,23 @@ export default function OnboardingScreen() {
           />
         ) : null}
       </View>
+
+      {/* Loading Overlay */}
+      <Modal visible={isProcessing} transparent={true} animationType="fade">
+        <View className="flex-1 justify-center items-center bg-black/80">
+          <View className="bg-card rounded-2xl p-xl items-center min-w-[280px] border-2 border-primary">
+            <View className="w-20 h-20 rounded-full bg-primary/20 justify-center items-center mb-lg">
+              <ActivityIndicator size="large" color="#FF2E63" />
+            </View>
+            <Text className="text-h3 text-text-primary mb-sm text-center">
+              {isCreatingAccount ? 'Creating Wallet' : 'Restoring Wallet'}
+            </Text>
+            <Text className="text-body text-text-secondary text-center">
+              {loadingMessage}
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }

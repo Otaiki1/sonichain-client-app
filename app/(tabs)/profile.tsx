@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  Clipboard,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -22,6 +23,7 @@ import {
 import { XPBar } from '../../components/XPBar';
 import { Button } from '../../components/Button';
 import { useAppStore } from '../../store/useAppStore';
+import { useWallet } from '../../contexts/WalletContext';
 
 const PROFILE_ICONS = [
   '👤',
@@ -53,22 +55,32 @@ export default function ProfileScreen() {
     updateUser,
   } = useAppStore();
 
-  const [showPrivateKey, setShowPrivateKey] = useState(false);
-  const [showPrivateKeyModal, setShowPrivateKeyModal] = useState(false);
+  const {
+    address,
+    mnemonic,
+    getPrivateKey,
+    logout: walletLogout,
+  } = useWallet();
+
+  const [showSeedPhrase, setShowSeedPhrase] = useState(false);
+  const [showSeedPhraseModal, setShowSeedPhraseModal] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await walletLogout();
     setUser(null);
     setHasCompletedOnboarding(false);
     router.replace('/onboarding');
   };
 
   const handleResetData = async () => {
+    await walletLogout();
     await resetData();
     router.replace('/onboarding');
   };
 
   const copyToClipboard = (text: string, type: string) => {
+    Clipboard.setString(text);
     Alert.alert('Copied!', `${type} copied to clipboard`);
   };
 
@@ -126,12 +138,12 @@ export default function ProfileScreen() {
                   className="text-small text-text-primary font-mono flex-1"
                   numberOfLines={1}
                 >
-                  {user.walletAddress || 'SP2X...7K9M'}
+                  {address || user.walletAddress || 'No wallet connected'}
                 </Text>
                 <TouchableOpacity
                   onPress={() =>
                     copyToClipboard(
-                      user.walletAddress || 'SP2X...7K9M',
+                      address || user.walletAddress || '',
                       'Wallet address'
                     )
                   }
@@ -152,13 +164,13 @@ export default function ProfileScreen() {
               </Text>
             </View>
 
-            {/* Export Private Key */}
+            {/* Export Seed Phrase */}
             <TouchableOpacity
-              onPress={() => setShowPrivateKeyModal(true)}
+              onPress={() => setShowSeedPhraseModal(true)}
               className="mt-md bg-error/20 rounded-md px-md py-sm border border-error/30"
             >
               <Text className="text-small text-error font-semibold text-center">
-                🔑 Export Private Key
+                🔑 Export Seed Phrase
               </Text>
             </TouchableOpacity>
           </View>
@@ -321,55 +333,69 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* Private Key Modal */}
+      {/* Seed Phrase Modal */}
       <Modal
-        visible={showPrivateKeyModal}
+        visible={showSeedPhraseModal}
         animationType="fade"
         transparent={true}
-        onRequestClose={() => setShowPrivateKeyModal(false)}
+        onRequestClose={() => setShowSeedPhraseModal(false)}
       >
-        <View className="flex-1 justify-center items-center bg-black/80 px-lg">
-          <View className="bg-card rounded-lg p-lg w-full max-w-md border border-error">
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+          className="flex-1 bg-black/80 px-lg"
+        >
+          <View className="bg-card rounded-lg p-lg my-lg border border-error">
             <Text className="text-h2 text-text-primary mb-md">
-              ⚠️ Private Key
+              ⚠️ Seed Phrase
             </Text>
             <Text className="text-body text-text-secondary mb-lg">
-              Never share your private key with anyone. It gives full access to
-              your wallet.
+              Never share your seed phrase with anyone. It gives full access to
+              your wallet. Write it down and store it safely.
             </Text>
 
             <View className="bg-background rounded-md p-md mb-md">
               <View className="flex-row items-center justify-between mb-sm">
                 <Text className="text-caption text-text-secondary">
-                  Your Private Key
+                  Your 24-Word Seed Phrase
                 </Text>
                 <TouchableOpacity
-                  onPress={() => setShowPrivateKey(!showPrivateKey)}
+                  onPress={() => setShowSeedPhrase(!showSeedPhrase)}
                 >
-                  {showPrivateKey ? (
+                  {showSeedPhrase ? (
                     <EyeOff size={18} color="#D4A5B8" />
                   ) : (
                     <Eye size={18} color="#D4A5B8" />
                   )}
                 </TouchableOpacity>
               </View>
-              <Text className="text-small text-text-primary font-mono">
-                {showPrivateKey
-                  ? user.privateKey ||
-                    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
-                  : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
+              <Text className="text-small text-text-primary leading-6">
+                {showSeedPhrase
+                  ? mnemonic || 'No seed phrase available'
+                  : '•••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• ••••'}
               </Text>
             </View>
 
+            {getPrivateKey() && (
+              <View className="bg-background rounded-md p-md mb-md">
+                <Text className="text-caption text-text-secondary mb-sm">
+                  Private Key (Advanced)
+                </Text>
+                <Text
+                  className="text-small text-text-primary font-mono"
+                  numberOfLines={2}
+                >
+                  {showSeedPhrase
+                    ? getPrivateKey()
+                    : '••••••••••••••••••••••••••••••••'}
+                </Text>
+              </View>
+            )}
+
             <View className="flex-row gap-md">
               <Button
-                title="Copy"
+                title="Copy Seed"
                 onPress={() => {
-                  copyToClipboard(
-                    user.privateKey ||
-                      'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-                    'Private key'
-                  );
+                  copyToClipboard(mnemonic || '', 'Seed phrase');
                 }}
                 variant="primary"
                 size="medium"
@@ -378,8 +404,8 @@ export default function ProfileScreen() {
               <Button
                 title="Close"
                 onPress={() => {
-                  setShowPrivateKey(false);
-                  setShowPrivateKeyModal(false);
+                  setShowSeedPhrase(false);
+                  setShowSeedPhraseModal(false);
                 }}
                 variant="outline"
                 size="medium"
@@ -387,7 +413,7 @@ export default function ProfileScreen() {
               />
             </View>
           </View>
-        </View>
+        </ScrollView>
       </Modal>
 
       {/* Icon Picker Modal */}
