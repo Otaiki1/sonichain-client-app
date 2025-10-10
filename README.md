@@ -11,6 +11,7 @@ A React Native mobile application built with Expo that enables users to collabor
 - [State Management](#state-management)
 - [Navigation Flow](#navigation-flow)
 - [Data Models](#data-models)
+- [Blockchain Integration](#blockchain-integration-stacks)
 - [Getting Started](#getting-started)
 - [Development Workflow](#development-workflow)
 - [Coding Conventions](#coding-conventions)
@@ -513,13 +514,56 @@ The project uses `@/` alias for clean imports:
 - ✅ Call `saveData()` after mutations that need persistence
 - ✅ Use selectors for derived state
 
-## 🔌 Backend Integration (Future)
+## 🔌 Blockchain Integration (Stacks)
 
-The project has Supabase client installed but not yet integrated. When implementing backend:
+The project has a complete Stacks blockchain integration layer ready for your smart contract:
+
+### Structure
+
+```
+lib/
+├── contract-config.ts    # Contract address, network settings
+├── contract-utils.ts     # Contract function wrappers
+├── stx-utils.ts         # Balance, transactions, utilities
+└── INTEGRATION_GUIDE.md # Detailed integration guide
+
+hooks/
+└── useContract.ts       # Hook for contract interactions
+
+contexts/
+└── WalletContext.tsx    # Wallet state management
+```
+
+### Quick Setup
+
+1. **Deploy your Clarity smart contract** to Stacks testnet/mainnet
+2. **Update `lib/contract-config.ts`** with your contract address and name
+3. **Implement your functions** in `lib/contract-utils.ts`
+4. **Use in components** via `useContract()` hook
+
+### Example Usage
+
+```typescript
+import { useContract } from '@/hooks/useContract';
+
+const { isConnected, address, createStoryOnChain, sendSTX } = useContract();
+
+// Create story on blockchain
+await createStoryOnChain('Title', 'Mystery', 10, 5);
+
+// Send STX
+await sendSTX('SP1234...', stxToMicroStx(5), 'Bounty payment');
+```
+
+See `lib/INTEGRATION_GUIDE.md` for complete documentation.
+
+## 🔌 Backend Integration (Supabase)
+
+The project has Supabase client installed for off-chain data:
 
 1. Configure Supabase in environment variables
 2. Create service layer in `/services/`
-3. Replace mock data in store with API calls
+3. Store audio files, user profiles, and metadata
 4. Implement real-time subscriptions for collaborative features
 
 ## 📱 Platform Support
