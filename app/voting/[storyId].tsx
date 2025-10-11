@@ -1,18 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TouchableOpacity,
-  Animated,
-} from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, Animated } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Clock, Coins } from 'lucide-react-native';
-import { theme } from '../../constants/theme';
-import { WaveformCard } from '../../components/WaveformCard';
-import { Button } from '../../components/Button';
+import { ArrowLeft, Clock, Coins, Zap } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { AnimatedVoiceBlock } from '../../components/AnimatedVoiceBlock';
+import { GameButton } from '../../components/GameButton';
+import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
+import { SoundEffects } from '../../utils/soundEffects';
 
 const mockSubmissions = [
   {
@@ -43,36 +40,66 @@ export default function VotingScreen() {
   const [showResults, setShowResults] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
 
-  const scaleAnim = new Animated.Value(1);
+  // Animation values
+  const resultsOpacity = useRef(new Animated.Value(0)).current;
+  const resultsScale = useRef(new Animated.Value(0.8)).current;
+  const emojiRotate = useRef(new Animated.Value(0)).current;
 
   const handleVote = (submissionId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    SoundEffects.playTap();
     setSelectedSubmission(submissionId);
   };
 
-  const submitVote = () => {
+  const submitVote = async () => {
     if (!selectedSubmission || !user) return;
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    SoundEffects.playWhoosh();
 
     setHasVoted(true);
 
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 1.2,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
     setTimeout(() => {
       setShowResults(true);
-      updateUser({
-        totalVotes: user.totalVotes + 1,
-      });
-      addXP(10);
+      SoundEffects.playSuccess();
+
+      // Animate results
+      Animated.parallel([
+        Animated.timing(resultsOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.spring(resultsScale, {
+          toValue: 1,
+          damping: 12,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Rotate emoji
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(emojiRotate, {
+            toValue: 10,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(emojiRotate, {
+            toValue: -10,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(emojiRotate, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      updateUser({ totalVotes: user.totalVotes + 1 });
+      addXP(25);
 
       if (user.totalVotes === 0) {
         unlockBadge('badge2');
@@ -85,38 +112,46 @@ export default function VotingScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView className="flex-1 bg-background">
+      <BackgroundPulse />
+
+      {/* Header */}
+      <View className="flex-row items-center justify-between p-lg border-b border-border relative z-10">
         <TouchableOpacity onPress={() => router.back()}>
-          <ArrowLeft size={24} color={theme.colors.text} />
+          <ArrowLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Vote for Next Block</Text>
+        <Text className="text-h3 text-text-primary">Vote for Next Block</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <View style={styles.content}>
+      <View className="flex-1 relative z-10">
         {!showResults ? (
           <>
-            {/* Story Context Info */}
+            {/* Story Context */}
             {story && (story.votingWindowHours || story.bountyStx) && (
-              <View style={styles.storyContext}>
+              <View className="flex-row gap-md px-lg pt-lg pb-md">
                 {story.votingWindowHours && (
-                  <View style={styles.contextCard}>
-                    <Clock size={18} color={theme.colors.primary} />
-                    <View style={styles.contextInfo}>
-                      <Text style={styles.contextLabel}>Voting Window</Text>
-                      <Text style={styles.contextValue}>
-                        {story.votingWindowHours} hours
+                  <View className="flex-1 flex-row items-center bg-card px-md py-sm rounded-xl gap-sm border border-accent/30">
+                    <Clock size={18} color="#00FFFF" />
+                    <View className="flex-1">
+                      <Text className="text-caption text-text-secondary text-xs">
+                        Voting Window
+                      </Text>
+                      <Text className="text-body text-text-primary font-bold">
+                        {story.votingWindowHours}h
                       </Text>
                     </View>
                   </View>
                 )}
+
                 {story.bountyStx && (
-                  <View style={styles.contextCard}>
-                    <Coins size={18} color={theme.colors.secondary} />
-                    <View style={styles.contextInfo}>
-                      <Text style={styles.contextLabel}>Bounty Reward</Text>
-                      <Text style={styles.contextValue}>
+                  <View className="flex-1 flex-row items-center bg-card px-md py-sm rounded-xl gap-sm border border-secondary/30">
+                    <Coins size={18} color="#FF6B9D" />
+                    <View className="flex-1">
+                      <Text className="text-caption text-text-secondary text-xs">
+                        Bounty
+                      </Text>
+                      <Text className="text-body text-text-primary font-bold">
                         {story.bountyStx} STX
                       </Text>
                     </View>
@@ -125,210 +160,155 @@ export default function VotingScreen() {
               </View>
             )}
 
-            <View style={styles.instructionContainer}>
-              <Text style={styles.instruction}>
-                Listen to both submissions and vote for your favorite!
-              </Text>
-              <Text style={styles.subInstruction}>You can only vote once</Text>
+            {/* Instructions */}
+            <View className="px-lg pb-md">
+              <View className="bg-accent/10 rounded-xl p-md border border-accent/30">
+                <Text className="text-body text-text-primary font-semibold mb-xs">
+                  ⚔️ Battle of the Voices
+                </Text>
+                <Text className="text-caption text-text-secondary">
+                  Listen to both submissions and vote for your favorite! You can
+                  only vote once.
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.submissionsContainer}>
-              {mockSubmissions.map((submission) => (
+            {/* Battle Layout */}
+            <View className="flex-1 px-lg">
+              {mockSubmissions.map((submission, index) => (
                 <TouchableOpacity
                   key={submission.id}
-                  style={[
-                    styles.submissionCard,
-                    selectedSubmission === submission.id && styles.selectedCard,
-                  ]}
                   onPress={() => handleVote(submission.id)}
-                  activeOpacity={0.8}
+                  activeOpacity={0.9}
+                  className="mb-md"
                 >
-                  <WaveformCard
-                    block={{
-                      id: submission.id,
-                      username: submission.username,
-                      audioUri: submission.audioUri,
-                      duration: submission.duration,
-                      timestamp: new Date().toISOString(),
+                  <View
+                    className={`rounded-2xl overflow-hidden border-2 ${
+                      selectedSubmission === submission.id
+                        ? 'border-accent'
+                        : 'border-border'
+                    }`}
+                    style={{
+                      shadowColor:
+                        selectedSubmission === submission.id
+                          ? '#00FFFF'
+                          : '#FF2E63',
+                      shadowOffset: { width: 0, height: 0 },
+                      shadowRadius: 15,
+                      shadowOpacity:
+                        selectedSubmission === submission.id ? 0.8 : 0.2,
                     }}
-                    isPlaying={playingId === submission.id}
-                    onPlayPress={() =>
-                      setPlayingId(
-                        playingId === submission.id ? null : submission.id
-                      )
-                    }
-                  />
-                  {selectedSubmission === submission.id && (
-                    <View style={styles.selectedBadge}>
-                      <Text style={styles.selectedText}>✓ Selected</Text>
+                  >
+                    {selectedSubmission === submission.id && (
+                      <LinearGradient
+                        colors={[
+                          'rgba(0, 255, 255, 0.2)',
+                          'rgba(0, 255, 255, 0.05)',
+                        ]}
+                        className="absolute inset-0 z-0"
+                      />
+                    )}
+
+                    <View className="relative z-10">
+                      <AnimatedVoiceBlock
+                        block={{
+                          id: submission.id,
+                          username: submission.username,
+                          audioUri: submission.audioUri,
+                          duration: submission.duration,
+                          timestamp: new Date().toISOString(),
+                        }}
+                        isPlaying={playingId === submission.id}
+                        onPlayPress={() =>
+                          setPlayingId(
+                            playingId === submission.id ? null : submission.id
+                          )
+                        }
+                      />
                     </View>
-                  )}
+
+                    {selectedSubmission === submission.id && (
+                      <View
+                        className="absolute top-2 right-2 bg-accent px-sm py-xs rounded-md"
+                        style={{
+                          shadowColor: '#00FFFF',
+                          shadowOffset: { width: 0, height: 0 },
+                          shadowRadius: 10,
+                          shadowOpacity: 0.8,
+                        }}
+                      >
+                        <Text className="text-small text-background font-bold">
+                          ✓ SELECTED
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <View style={styles.footer}>
-              <Button
+            {/* Vote Button */}
+            <View className="p-lg relative z-10">
+              <GameButton
                 title="Submit Vote"
                 onPress={submitVote}
                 disabled={!selectedSubmission || hasVoted}
                 loading={hasVoted && !showResults}
                 size="large"
+                variant="accent"
                 className="w-full"
               />
             </View>
           </>
         ) : (
+          /* Results Screen */
           <Animated.View
-            style={[
-              styles.resultsContainer,
-              { transform: [{ scale: scaleAnim }] },
-            ]}
+            style={{
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingHorizontal: 24,
+              opacity: resultsOpacity,
+              transform: [{ scale: resultsScale }],
+            }}
           >
-            <Text style={styles.resultsEmoji}>🎉</Text>
-            <Text style={styles.resultsTitle}>Vote Submitted!</Text>
-            <Text style={styles.resultsText}>
-              The winning block will be added to the chain soon
+            <Animated.Text
+              style={{
+                fontSize: 64,
+                marginBottom: 24,
+                transform: [
+                  {
+                    rotate: emojiRotate.interpolate({
+                      inputRange: [-10, 10],
+                      outputRange: ['-10deg', '10deg'],
+                    }),
+                  },
+                ],
+              }}
+            >
+              🎉
+            </Animated.Text>
+
+            <Text className="text-h1 text-text-primary mb-md text-center">
+              Vote Cast!
             </Text>
-            <View style={styles.xpBadge}>
-              <Text style={styles.xpText}>+10 XP</Text>
+
+            <View className="bg-accent/20 rounded-2xl p-lg border-2 border-accent/50 mb-lg">
+              <View className="flex-row items-center justify-center mb-sm">
+                <Zap size={20} color="#00FFFF" />
+                <Text className="text-h3 text-accent ml-sm">+25 XP</Text>
+              </View>
+              <Text className="text-caption text-text-secondary text-center">
+                Thanks for participating in the story!
+              </Text>
             </View>
+
+            <Text className="text-body text-text-secondary">
+              Returning to story...
+            </Text>
           </Animated.View>
         )}
       </View>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  headerTitle: {
-    ...theme.typography.h3,
-    color: theme.colors.text,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  instructionContainer: {
-    paddingVertical: theme.spacing.lg,
-    alignItems: 'center',
-  },
-  instruction: {
-    ...theme.typography.body,
-    color: theme.colors.text,
-    textAlign: 'center',
-    marginBottom: theme.spacing.xs,
-  },
-  subInstruction: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-  },
-  submissionsContainer: {
-    flex: 1,
-  },
-  submissionCard: {
-    marginBottom: theme.spacing.md,
-    borderRadius: theme.borderRadius.lg,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  selectedCard: {
-    borderColor: theme.colors.primary,
-  },
-  selectedBadge: {
-    position: 'absolute',
-    top: theme.spacing.sm,
-    right: theme.spacing.sm,
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.md,
-  },
-  selectedText: {
-    ...theme.typography.caption,
-    color: theme.colors.background,
-    fontWeight: '700',
-  },
-  footer: {
-    paddingVertical: theme.spacing.lg,
-  },
-  voteButton: {
-    width: '100%',
-  },
-  storyContext: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
-  },
-  contextCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.cardBackground,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    gap: theme.spacing.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  contextInfo: {
-    flex: 1,
-  },
-  contextLabel: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.xs,
-  },
-  contextValue: {
-    ...theme.typography.body,
-    color: theme.colors.text,
-    fontWeight: '700',
-  },
-  resultsContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  resultsEmoji: {
-    fontSize: 80,
-    marginBottom: theme.spacing.lg,
-  },
-  resultsTitle: {
-    ...theme.typography.h1,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.md,
-  },
-  resultsText: {
-    ...theme.typography.body,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: theme.spacing.xl,
-  },
-  xpBadge: {
-    backgroundColor: theme.colors.accent,
-    paddingHorizontal: theme.spacing.xl,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.full,
-  },
-  xpText: {
-    ...theme.typography.h2,
-    color: theme.colors.text,
-    fontWeight: '700',
-  },
-});

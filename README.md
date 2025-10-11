@@ -574,19 +574,48 @@ The project has Supabase client installed for off-chain data:
 
 ## 🎨 Design System
 
-The app uses a dark theme with a beautiful red/pink color palette:
+The app uses a dark neon theme with energetic pink-cyan colors for a game-like feel:
 
 **Colors:**
 
-- Primary: `#FF2E63` (Hot Pink)
-- Secondary: `#FF6B9D` (Rose Pink)
-- Accent: `#FF4081` (Coral Pink)
-- Background: `#1A0E14` (Dark burgundy)
+- Primary: `#FF2E63` (Hot Pink - sonic pulse energy)
+- Secondary: `#FF6B9D` (Neon Pink)
+- Accent: `#00FFFF` (Cyan - pulse glow highlight)
+- Success: `#28FFBF` (Minty success glow)
+- Background: `#1A0E14` (Deep dark plum)
 - Card: `#2A1520` (Dark rose)
 
 **Spacing Scale:** 4px, 8px, 16px, 24px, 32px, 48px
 
 **Typography:** System font with weights 400, 600, 700
+
+## 🎮 Game-Like Features
+
+The app includes energetic animations and tactile feedback for an engaging experience:
+
+**Animations:**
+
+- ✨ Pulsing background with sound ripples
+- 🌊 Animated waveforms that respond to playback
+- 💫 Glowing buttons with gradient pulses
+- 🎭 Staggered card entry animations
+- ⚡ XP bar with moving cyan particles
+- 🎯 Battle-style voting with slide-in animations
+
+**Haptic Feedback:**
+
+- 📱 Medium impact on button presses
+- 🎵 Light impact on card taps
+- ⚡ Heavy impact on major actions (finalize)
+- ✅ Success notifications on achievements
+
+**Sound Effects:**
+
+- 🔊 Tap clicks, success chimes, vote whooshes
+- 🎵 Optional (can be disabled)
+- 🌐 Web-hosted (no app bloat)
+
+See `GAME_TRANSFORMATION.md` for complete details.
 
 ## 🐛 Debugging Tips
 

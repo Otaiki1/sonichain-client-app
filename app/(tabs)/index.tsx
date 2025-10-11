@@ -3,7 +3,6 @@ import {
   View,
   Text,
   FlatList,
-  SafeAreaView,
   TextInput,
   TouchableOpacity,
   Image,
@@ -12,10 +11,14 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Plus, Search, X } from 'lucide-react-native';
-import { StoryCard } from '../../components/StoryCard';
+import * as Haptics from 'expo-haptics';
+import { AnimatedStoryCard } from '../../components/AnimatedStoryCard';
 import { Button } from '../../components/Button';
+import { GameButton } from '../../components/GameButton';
+import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
 
 const CATEGORIES = [
@@ -122,7 +125,8 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <View className="px-lg pt-lg pb-md items-center">
+      <BackgroundPulse />
+      <View className="px-lg pt-lg pb-md items-center relative z-10">
         <Image
           source={require('../../assets/images/Logo.png')}
           className="w-52 h-16 mb-xs"
@@ -160,10 +164,11 @@ export default function HomeScreen() {
       <FlatList
         data={filteredStories}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <StoryCard
+        renderItem={({ item, index }) => (
+          <AnimatedStoryCard
             story={item}
             onPress={() => router.push(`/story/${item.id}`)}
+            index={index}
           />
         )}
         contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 32 }}
@@ -365,19 +370,21 @@ export default function HomeScreen() {
 
             {/* Footer Buttons */}
             <View className="p-lg border-t border-border gap-md">
-              <Button
+              <GameButton
                 title="Create Story"
                 onPress={handleSubmitNewStory}
                 disabled={!newStoryTitle.trim()}
                 size="large"
+                variant="accent"
                 className="w-full"
               />
-              <Button
+              <GameButton
                 title="Cancel"
                 onPress={handleCloseModal}
                 variant="outline"
                 size="medium"
                 className="w-full"
+                glow={false}
               />
             </View>
           </KeyboardAvoidingView>

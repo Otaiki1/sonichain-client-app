@@ -3,7 +3,6 @@ import {
   View,
   Text,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Modal,
   TextInput,
@@ -12,6 +11,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   LogOut,
@@ -23,8 +23,10 @@ import {
   CheckCircle,
   RefreshCw,
 } from 'lucide-react-native';
-import { XPBar } from '../../components/XPBar';
+import { AnimatedXPBar } from '../../components/AnimatedXPBar';
 import { Button } from '../../components/Button';
+import { GameButton } from '../../components/GameButton';
+import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
 import { useWallet } from '../../contexts/WalletContext';
 import { getStxBalance, microStxToStx } from '../../lib/stx-utils';
@@ -150,6 +152,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
+      <BackgroundPulse />
       <ScrollView
         contentContainerStyle={{ paddingBottom: 48 }}
         refreshControl={
@@ -257,8 +260,8 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View className="px-lg mb-xl">
-          <XPBar xp={user.xp} level={user.level} />
+        <View className="px-lg mb-xl relative z-10">
+          <AnimatedXPBar xp={user.xp} level={user.level} />
         </View>
 
         <View className="flex-row px-lg mb-xl gap-md">

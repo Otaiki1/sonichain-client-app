@@ -1,15 +1,11 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  SafeAreaView,
-  TouchableOpacity,
-} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Clock, Coins } from 'lucide-react-native';
-import { WaveformCard } from '../../components/WaveformCard';
-import { Button } from '../../components/Button';
+import { AnimatedVoiceBlock } from '../../components/AnimatedVoiceBlock';
+import { GameButton } from '../../components/GameButton';
+import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
 
 export default function StoryDetailScreen() {
@@ -47,8 +43,9 @@ export default function StoryDetailScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
+      <BackgroundPulse />
       {/* Header */}
-      <View className="flex-row items-center p-lg border-b border-border">
+      <View className="flex-row items-center p-lg border-b border-border relative z-10">
         <TouchableOpacity onPress={() => router.back()} className="mr-md">
           <ArrowLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
@@ -159,12 +156,13 @@ export default function StoryDetailScreen() {
               </Text>
             </View>
           ) : (
-            story.blocks.map((block) => (
-              <WaveformCard
+            story.blocks.map((block, index) => (
+              <AnimatedVoiceBlock
                 key={block.id}
                 block={block}
                 isPlaying={playingBlockId === block.id}
                 onPlayPress={() => handlePlayBlock(block.id)}
+                index={index}
               />
             ))
           )}
@@ -190,11 +188,12 @@ export default function StoryDetailScreen() {
 
       {/* Contribute Button */}
       {story.status === 'active' && (
-        <View className="p-lg border-t border-border">
-          <Button
-            title="Contribute to Story"
+        <View className="p-lg border-t border-border relative z-10">
+          <GameButton
+            title="🎤 Contribute to Story"
             onPress={handleContribute}
             size="large"
+            variant="accent"
             className="w-full"
           />
         </View>

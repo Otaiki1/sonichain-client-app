@@ -1,12 +1,6 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  SafeAreaView,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   CheckCircle,
@@ -15,8 +9,11 @@ import {
   Clock,
   Coins,
 } from 'lucide-react-native';
-import { Button } from '../../components/Button';
+import * as Haptics from 'expo-haptics';
+import { GameButton } from '../../components/GameButton';
+import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
+import { SoundEffects } from '../../utils/soundEffects';
 
 export default function ActivityScreen() {
   const router = useRouter();
@@ -51,6 +48,7 @@ export default function ActivityScreen() {
   const myNFTs = user.nfts || [];
 
   const handleFinalizeStory = (storyId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setProcessingStoryId(storyId);
 
     const story = storyChains.find((s) => s.id === storyId);
@@ -58,6 +56,8 @@ export default function ActivityScreen() {
 
     // Simulate finalization
     setTimeout(() => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      SoundEffects.playSuccess();
       // Update story status
       updateStoryChain(storyId, {
         status: 'finalized',
@@ -103,7 +103,8 @@ export default function ActivityScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <View className="px-lg pt-lg pb-md">
+      <BackgroundPulse />
+      <View className="px-lg pt-lg pb-md relative z-10">
         <Text className="text-h1 text-text-primary mb-xs">Activity</Text>
         <Text className="text-body text-text-secondary">
           Manage your stories and NFTs
@@ -164,16 +165,17 @@ export default function ActivityScreen() {
                   </Text>
                 </View>
 
-                <Button
+                <GameButton
                   title={
                     processingStoryId === story.id
                       ? 'Processing...'
-                      : 'Finalize & Distribute'
+                      : '⚡ Finalize & Distribute'
                   }
                   onPress={() => handleFinalizeStory(story.id)}
                   disabled={processingStoryId === story.id}
                   loading={processingStoryId === story.id}
                   size="medium"
+                  variant="accent"
                   className="w-full"
                 />
               </View>
