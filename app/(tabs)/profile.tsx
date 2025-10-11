@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   TextInput,
   Alert,
   Clipboard,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -19,11 +21,13 @@ import {
   Wallet,
   Image as ImageIcon,
   CheckCircle,
+  RefreshCw,
 } from 'lucide-react-native';
 import { XPBar } from '../../components/XPBar';
 import { Button } from '../../components/Button';
 import { useAppStore } from '../../store/useAppStore';
 import { useWallet } from '../../contexts/WalletContext';
+import { getStxBalance, microStxToStx } from '../../lib/stx-utils';
 
 const PROFILE_ICONS = [
   '👤',
@@ -65,6 +69,45 @@ export default function ProfileScreen() {
   const [showSeedPhrase, setShowSeedPhrase] = useState(false);
   const [showSeedPhraseModal, setShowSeedPhraseModal] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const [realBalance, setRealBalance] = useState<number | null>(null);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch real balance from blockchain
+  const fetchBalance = async () => {
+    if (!address) return;
+
+    setIsLoadingBalance(true);
+    try {
+      const balanceInMicroStx = await getStxBalance(address);
+      const balanceInStx = microStxToStx(balanceInMicroStx);
+      setRealBalance(balanceInStx);
+
+      // Update user's balance in store for offline access
+      if (user) {
+        updateUser({ walletBalance: balanceInStx });
+      }
+    } catch (error) {
+      console.error('Failed to fetch balance:', error);
+      // Don't alert on every error, just log it
+    } finally {
+      setIsLoadingBalance(false);
+    }
+  };
+
+  // Fetch balance on mount and when address changes
+  useEffect(() => {
+    if (address) {
+      fetchBalance();
+    }
+  }, [address]);
+
+  // Pull to refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchBalance();
+    setRefreshing(false);
+  };
 
   const handleLogout = async () => {
     await walletLogout();
@@ -107,7 +150,17 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 48 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#FF2E63"
+            colors={['#FF2E63']}
+          />
+        }
+      >
         <View className="items-center py-xl px-lg">
           <TouchableOpacity
             onPress={() => setShowIconPicker(true)}
@@ -156,12 +209,40 @@ export default function ProfileScreen() {
 
             {/* Balance */}
             <View>
-              <Text className="text-caption text-text-secondary mb-xs">
-                Balance
-              </Text>
-              <Text className="text-h2 text-primary font-bold">
-                {user.walletBalance || 0} STX
-              </Text>
+              <View className="flex-row items-center justify-between mb-xs">
+                <Text className="text-caption text-text-secondary">
+                  Balance (On-Chain)
+                </Text>
+                <TouchableOpacity
+                  onPress={fetchBalance}
+                  disabled={isLoadingBalance}
+                  className="p-xs"
+                >
+                  {isLoadingBalance ? (
+                    <ActivityIndicator size="small" color="#FF2E63" />
+                  ) : (
+                    <RefreshCw size={16} color="#FF6B9D" />
+                  )}
+                </TouchableOpacity>
+              </View>
+              <View className="flex-row items-center">
+                {isLoadingBalance && realBalance === null ? (
+                  <ActivityIndicator size="small" color="#FF2E63" />
+                ) : (
+                  <Text className="text-h2 text-primary font-bold">
+                    {(realBalance !== null
+                      ? realBalance
+                      : user.walletBalance || 0
+                    ).toFixed(4)}{' '}
+                    STX
+                  </Text>
+                )}
+              </View>
+              {realBalance !== null && (
+                <Text className="text-caption text-accent mt-xs">
+                  ✓ Live from blockchain
+                </Text>
+              )}
             </View>
 
             {/* Export Seed Phrase */}

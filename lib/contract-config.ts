@@ -5,11 +5,11 @@ import { STACKS_TESTNET, STACKS_MAINNET } from '@stacks/network';
  * Update these values with your deployed contract details
  */
 export const CONTRACT_CONFIG = {
-  // TODO: Update with your contract address after deployment
-  CONTRACT_ADDRESS: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
+  // Contract address (deployed testnet address)
+  CONTRACT_ADDRESS: 'ST1VQMZKSFRW25H34XQS2KVDQ3FQEBFPWC2XM0ZYC',
 
-  // TODO: Update with your contract name
-  CONTRACT_NAME: 'sonichain-story',
+  // Contract name
+  CONTRACT_NAME: 'Sonichain',
 
   // Network configuration (switch to STACKS_MAINNET for production)
   NETWORK: STACKS_TESTNET,
@@ -19,6 +19,12 @@ export const CONTRACT_CONFIG = {
 
   // Post condition mode
   POST_CONDITION_MODE: 'allow' as const, // 'allow' | 'deny'
+
+  // Contract constants (from Clarity contract)
+  VOTING_PERIOD: 144, // blocks (~24 hours)
+  MIN_BLOCKS_TO_SEAL: 5,
+  MAX_BLOCKS_PER_STORY: 50,
+  PLATFORM_FEE_BPS: 250, // 2.5% platform fee
 };
 
 /**

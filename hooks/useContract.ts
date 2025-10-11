@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Alert } from 'react-native';
 import { useWallet } from '@/contexts/WalletContext';
 import { useAppStore } from '@/store/useAppStore';
@@ -12,11 +12,11 @@ import { CONTRACT_CONFIG } from '@/lib/contract-config';
 import * as ContractUtils from '@/lib/contract-utils';
 
 /**
- * Custom hook for Stacks contract interactions
+ * Custom hook for Sonichain contract interactions
  * Provides wallet connection state and contract call functions
  *
  * Usage:
- *   const { isConnected, address, callContract, sendSTX } = useContract();
+ *   const { isConnected, address, registerUser, createStory } = useContract();
  */
 export function useContract() {
   const { wallet, address, mnemonic, getPrivateKey } = useWallet();
@@ -170,143 +170,227 @@ export function useContract() {
       );
     } catch (error: any) {
       console.error('Read-only call failed:', error);
-      Alert.alert('Read Failed', error.message || 'Failed to fetch data');
       return null;
     }
   }
 
   // ===========================================
-  // YOUR CONTRACT FUNCTIONS GO HERE
-  // TODO: Implement your specific contract functions below
+  // SONICHAIN CONTRACT FUNCTIONS
   // ===========================================
 
   /**
-   * TEMPLATE: Create Story on Blockchain
-   * TODO: Update arguments to match your contract
+   * Register user with username
+   * @param username - Username (max 50 characters)
    */
-  async function createStoryOnChain(
-    title: string,
-    category: string,
-    maxBlocks: number,
-    bountyAmount: number = 0
-  ) {
-    const txOptions = await ContractUtils.createStory(
-      title,
-      category,
-      maxBlocks,
-      bountyAmount
+  async function registerUserOnChain(username: string) {
+    const txOptions = await ContractUtils.registerUser(username);
+
+    return await callContract(
+      txOptions.functionName,
+      txOptions.functionArgs,
+      (txId) => {
+        console.log('User registered on chain:', txId);
+      }
     );
+  }
+
+  /**
+   * Create a new story on the blockchain
+   * @param prompt - Story prompt (max 500 characters)
+   */
+  async function createStoryOnChain(prompt: string) {
+    const txOptions = await ContractUtils.createStory(prompt);
 
     return await callContract(
       txOptions.functionName,
       txOptions.functionArgs,
       (txId) => {
         console.log('Story created on chain:', txId);
-        // TODO: Update local state, add story to database, etc.
       }
     );
   }
 
   /**
-   * TEMPLATE: Submit Voice Block
-   * TODO: Update arguments to match your contract
+   * Submit a voice block to current round
+   * @param storyId - Story ID
+   * @param uri - URI of the voice memo (e.g., IPFS hash)
    */
-  async function submitVoiceBlockOnChain(
-    storyId: number,
-    audioUri: string,
-    duration: number
-  ) {
-    const txOptions = await ContractUtils.submitVoiceBlock(
-      storyId,
-      audioUri,
-      duration
-    );
+  async function submitBlockOnChain(storyId: number, uri: string) {
+    const txOptions = await ContractUtils.submitBlock(storyId, uri);
 
     return await callContract(
       txOptions.functionName,
       txOptions.functionArgs,
       (txId) => {
         console.log('Voice block submitted:', txId);
-        // TODO: Update local state
       }
     );
   }
 
   /**
-   * TEMPLATE: Vote on Submission
-   * TODO: Update arguments to match your contract
+   * Vote for a submission
+   * @param submissionId - Submission ID to vote for
    */
-  async function voteOnChain(storyId: number, submissionId: number) {
-    const txOptions = await ContractUtils.voteOnSubmission(
-      storyId,
-      submissionId
-    );
+  async function voteOnChain(submissionId: number) {
+    const txOptions = await ContractUtils.voteBlock(submissionId);
 
     return await callContract(
       txOptions.functionName,
       txOptions.functionArgs,
       (txId) => {
         console.log('Vote submitted:', txId);
-        // TODO: Update vote count, user stats, etc.
+        // Update user stats
+        if (user) {
+          updateUser({ totalVotes: (user.totalVotes || 0) + 1 });
+        }
       }
     );
   }
 
   /**
-   * TEMPLATE: Finalize Story and Distribute Bounty
-   * TODO: Update arguments to match your contract
+   * Finalize a round (select winning submission and start next round)
+   * @param storyId - Story ID
+   * @param roundNum - Round number to finalize
    */
-  async function finalizeStoryOnChain(storyId: number) {
-    const txOptions = await ContractUtils.finalizeStory(storyId);
+  async function finalizeRoundOnChain(storyId: number, roundNum: number) {
+    const txOptions = await ContractUtils.finalizeRound(storyId, roundNum);
 
     return await callContract(
       txOptions.functionName,
       txOptions.functionArgs,
       (txId) => {
-        console.log('Story finalized:', txId);
-        // TODO: Mint NFTs, distribute bounty, update status
+        console.log('Round finalized:', txId);
       }
     );
   }
 
   /**
-   * TEMPLATE: Fetch Story from Blockchain
-   * TODO: Update return type to match your contract
+   * Fund a story's bounty pool
+   * @param storyId - Story ID
+   * @param amount - Amount in microSTX
+   */
+  async function fundBountyOnChain(storyId: number, amount: number) {
+    const txOptions = await ContractUtils.fundBounty(storyId, amount);
+
+    return await callContract(
+      txOptions.functionName,
+      txOptions.functionArgs,
+      (txId) => {
+        console.log('Bounty funded:', txId);
+      }
+    );
+  }
+
+  /**
+   * Seal a story and distribute rewards to all contributors
+   * @param storyId - Story ID
+   */
+  async function sealStoryOnChain(storyId: number) {
+    const txOptions = await ContractUtils.sealStory(storyId);
+
+    return await callContract(
+      txOptions.functionName,
+      txOptions.functionArgs,
+      (txId) => {
+        console.log('Story sealed and rewards distributed:', txId);
+      }
+    );
+  }
+
+  // ===========================================
+  // READ-ONLY QUERY FUNCTIONS
+  // ===========================================
+
+  /**
+   * Get story data from blockchain
+   * @param storyId - Story ID
    */
   async function fetchStory(storyId: number) {
-    return await readContract('get-story', [
-      ContractUtils.clarityHelpers.uint(storyId),
-    ]);
+    return await ContractUtils.getStory(storyId);
   }
 
   /**
-   * TEMPLATE: Fetch All Stories
-   * TODO: Implement based on your contract structure
+   * Get round data
+   * @param storyId - Story ID
+   * @param roundNum - Round number
    */
-  async function fetchAllStories() {
-    return await ContractUtils.getAllStories();
+  async function fetchRound(storyId: number, roundNum: number) {
+    return await ContractUtils.getRound(storyId, roundNum);
   }
 
   /**
-   * TEMPLATE: Mint Story NFT
-   * TODO: Update to match your NFT minting logic
+   * Get all submissions for a round
+   * @param storyId - Story ID
+   * @param roundNum - Round number
    */
-  async function mintStoryNFTOnChain(
+  async function fetchRoundSubmissions(storyId: number, roundNum: number) {
+    return await ContractUtils.getAllRoundSubmissions(storyId, roundNum);
+  }
+
+  /**
+   * Check if user has voted in a round
+   * @param storyId - Story ID
+   * @param roundNum - Round number
+   * @param voterAddress - Voter's address (defaults to current user)
+   */
+  async function checkHasVoted(
     storyId: number,
-    recipientAddress: string
+    roundNum: number,
+    voterAddress?: string
   ) {
-    const txOptions = await ContractUtils.mintStoryNFT(
+    return await ContractUtils.hasVoted(
       storyId,
-      recipientAddress
+      roundNum,
+      voterAddress || address || ''
     );
+  }
 
-    return await callContract(
-      txOptions.functionName,
-      txOptions.functionArgs,
-      (txId) => {
-        console.log('NFT minted:', txId);
-        // TODO: Update user NFT collection
-      }
+  /**
+   * Check if voting is active for a round
+   * @param storyId - Story ID
+   * @param roundNum - Round number
+   */
+  async function checkVotingActive(storyId: number, roundNum: number) {
+    return await ContractUtils.isVotingActive(storyId, roundNum);
+  }
+
+  /**
+   * Check if round can be finalized
+   * @param storyId - Story ID
+   * @param roundNum - Round number
+   */
+  async function checkCanFinalize(storyId: number, roundNum: number) {
+    return await ContractUtils.canFinalizeRound(storyId, roundNum);
+  }
+
+  /**
+   * Get complete story chain (all finalized blocks)
+   * @param storyId - Story ID
+   */
+  async function fetchCompleteStory(storyId: number) {
+    return await ContractUtils.getCompleteStoryChain(storyId);
+  }
+
+  /**
+   * Get user registration data
+   * @param userAddress - User's address (defaults to current user)
+   */
+  async function fetchUserData(userAddress?: string) {
+    return await ContractUtils.getUser(userAddress || address || '');
+  }
+
+  /**
+   * Get contributor stats for a story
+   * @param storyId - Story ID
+   * @param contributorAddress - Contributor's address
+   */
+  async function fetchContributorStats(
+    storyId: number,
+    contributorAddress?: string
+  ) {
+    return await ContractUtils.getContributorStats(
+      storyId,
+      contributorAddress || address || ''
     );
   }
 
@@ -322,13 +406,28 @@ export function useContract() {
     readContract,
     sendSTX,
 
-    // Your contract-specific functions (templates)
+    // User functions
+    registerUserOnChain,
+    fetchUserData,
+
+    // Story lifecycle functions
     createStoryOnChain,
-    submitVoiceBlockOnChain,
+    submitBlockOnChain,
     voteOnChain,
-    finalizeStoryOnChain,
+    finalizeRoundOnChain,
+    sealStoryOnChain,
+
+    // Bounty functions
+    fundBountyOnChain,
+
+    // Query functions
     fetchStory,
-    fetchAllStories,
-    mintStoryNFTOnChain,
+    fetchRound,
+    fetchRoundSubmissions,
+    fetchCompleteStory,
+    fetchContributorStats,
+    checkHasVoted,
+    checkVotingActive,
+    checkCanFinalize,
   };
 }

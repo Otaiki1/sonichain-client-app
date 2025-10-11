@@ -13,14 +13,8 @@ import * as ContractUtils from '@/lib/contract-utils';
 
 export function ExampleActivityIntegration() {
   const { user, storyChains, updateStoryChain, updateUser } = useAppStore();
-  const {
-    isConnected,
-    address,
-    isProcessing,
-    finalizeStoryOnChain,
-    mintStoryNFTOnChain,
-    sendSTX,
-  } = useContract();
+  const { isConnected, address, isProcessing, sealStoryOnChain, sendSTX } =
+    useContract();
 
   const handleFinalizeStory = async (storyId: string) => {
     const story = storyChains.find((s) => s.id === storyId);
@@ -32,55 +26,29 @@ export function ExampleActivityIntegration() {
     }
 
     try {
-      // Step 1: Call finalize-story contract function
-      const txId = await finalizeStoryOnChain(parseInt(storyId));
+      // Call seal-story contract function
+      // This will distribute bounty and mark as sealed
+      const txId = await sealStoryOnChain(parseInt(storyId));
 
       if (!txId) {
         return; // Error already shown by useContract
       }
 
-      // Step 2: Distribute bounty if exists
-      if (story.bountyStx && story.bountyStx > 0) {
-        const contributors = Array.from(
-          new Set(story.blocks.map((b) => b.username))
-        );
-        const bountyPerPerson = story.bountyStx / contributors.length;
-
-        // Send STX to each contributor
-        // Note: In production, this should be handled by the smart contract
-        for (const contributor of contributors) {
-          // Get contributor's wallet address from your backend/database
-          const contributorAddress = 'SP...'; // TODO: Fetch from database
-
-          await sendSTX(
-            contributorAddress,
-            stxToMicroStx(bountyPerPerson),
-            `Bounty for ${story.title}`
-          );
-        }
-      }
-
-      // Step 3: Mint NFTs for all contributors
-      const contributors = Array.from(
-        new Set(story.blocks.map((b) => b.username))
-      );
-
-      for (const contributor of contributors) {
-        const contributorAddress = 'SP...'; // TODO: Fetch from database
-        await mintStoryNFTOnChain(parseInt(storyId), contributorAddress);
-      }
-
-      // Step 4: Update local state
+      // Update local state
       updateStoryChain(storyId, {
         status: 'finalized',
         nftMinted: true,
       });
 
+      const contributors = Array.from(
+        new Set(story.blocks.map((b) => b.username))
+      );
+
       Alert.alert(
         'Success! 🎉',
-        `Story finalized!\nBounty distributed: ${
+        `Story sealed!\nBounty distributed: ${
           story.bountyStx || 0
-        } STX\nNFTs minted: ${contributors.length}`
+        } STX\nContributors rewarded: ${contributors.length}`
       );
     } catch (error: any) {
       console.error('Finalization error:', error);
@@ -114,13 +82,9 @@ export function ExampleCreateStory() {
       return;
     }
 
-    // Call smart contract
-    const txId = await createStoryOnChain(
-      'The Midnight Detective',
-      'Mystery',
-      10,
-      stxToMicroStx(5) // 5 STX bounty
-    );
+    // Call smart contract (create-story only takes prompt in the contract)
+    const prompt = 'The Midnight Detective: A noir mystery begins...';
+    const txId = await createStoryOnChain(prompt);
 
     if (txId) {
       // Add to local state
@@ -178,7 +142,7 @@ export function ExampleGenericCall() {
       'your-function-name',
       [
         clarityHelpers.uint(123),
-        clarityHelpers.string('hello'),
+        clarityHelpers.stringUtf8('hello'),
         clarityHelpers.principal('SP1234...'),
       ],
       (txId) => {

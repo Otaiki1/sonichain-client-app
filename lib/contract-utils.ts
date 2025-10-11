@@ -3,11 +3,15 @@ import {
   cvToValue,
   uintCV,
   stringAsciiCV,
+  stringUtf8CV,
   principalCV,
   tupleCV,
   listCV,
   ClarityValue,
   PostConditionMode,
+  someCV,
+  noneCV,
+  bufferCV,
 } from '@stacks/transactions';
 import { makeSTXTokenTransfer } from '@stacks/transactions';
 import { CONTRACT_CONFIG } from './contract-config';
@@ -84,107 +88,334 @@ export async function prepareSTXTransfer(
  */
 export const clarityHelpers = {
   uint: (value: number) => uintCV(value),
-  string: (value: string) => stringAsciiCV(value),
+  stringAscii: (value: string) => stringAsciiCV(value),
+  stringUtf8: (value: string) => stringUtf8CV(value),
   principal: (address: string) => principalCV(address),
   tuple: (data: Record<string, ClarityValue>) => tupleCV(data),
   list: (items: ClarityValue[]) => listCV(items),
+  some: (value: ClarityValue) => someCV(value),
+  none: () => noneCV(),
+  buffer: (value: Buffer) => bufferCV(value),
 };
 
 // ===========================================
-// CONTRACT FUNCTION TEMPLATES
-// TODO: Replace these with your actual contract functions
+// USER REGISTRATION FUNCTIONS
 // ===========================================
 
 /**
- * EXAMPLE: Create Story Contract Call
- * Replace this with your actual create-story function
+ * Register a user with a unique username
+ * @param username - Username (max 50 characters)
+ * @returns Transaction options
  */
-export async function createStory(
-  title: string,
-  category: string,
-  maxBlocks: number,
-  bountyAmount?: number
-) {
-  const functionArgs = [
-    stringAsciiCV(title),
-    stringAsciiCV(category),
-    uintCV(maxBlocks),
-    // Add more args as needed for your contract
-  ];
+export async function registerUser(username: string) {
+  const functionArgs = [stringUtf8CV(username)];
+  return prepareContractCall('register-user', functionArgs);
+}
 
+/**
+ * Get user registration data
+ * @param userAddress - User's Stacks address
+ * @returns User data or null
+ */
+export async function getUser(userAddress: string) {
+  return await callReadOnly('get-user', [principalCV(userAddress)]);
+}
+
+// ===========================================
+// STORY LIFECYCLE FUNCTIONS
+// ===========================================
+
+/**
+ * Create a new story with initial prompt
+ * @param prompt - Story prompt (max 500 characters)
+ * @returns Transaction options
+ */
+export async function createStory(prompt: string) {
+  const functionArgs = [stringUtf8CV(prompt)];
   return prepareContractCall('create-story', functionArgs);
 }
 
 /**
- * EXAMPLE: Submit Voice Block
- * Replace with your actual submit-block function
+ * Submit a voice block to the current round
+ * @param storyId - Story ID
+ * @param uri - URI of the voice memo (e.g., IPFS hash)
+ * @returns Transaction options
  */
-export async function submitVoiceBlock(
-  storyId: number,
-  audioUri: string,
-  duration: number
-) {
-  const functionArgs = [
-    uintCV(storyId),
-    stringAsciiCV(audioUri),
-    uintCV(duration),
-  ];
-
-  return prepareContractCall('submit-voice-block', functionArgs);
+export async function submitBlock(storyId: number, uri: string) {
+  const functionArgs = [uintCV(storyId), stringAsciiCV(uri)];
+  return prepareContractCall('submit-block', functionArgs);
 }
 
 /**
- * EXAMPLE: Vote on Submission
- * Replace with your actual vote function
+ * Vote for a submission
+ * @param submissionId - Submission ID to vote for
+ * @returns Transaction options
  */
-export async function voteOnSubmission(storyId: number, submissionId: number) {
-  const functionArgs = [uintCV(storyId), uintCV(submissionId)];
-
-  return prepareContractCall('vote', functionArgs);
+export async function voteBlock(submissionId: number) {
+  const functionArgs = [uintCV(submissionId)];
+  return prepareContractCall('vote-block', functionArgs);
 }
 
 /**
- * EXAMPLE: Finalize Story
- * Replace with your actual finalize function
+ * Finalize a round (select winning submission)
+ * @param storyId - Story ID
+ * @param roundNum - Round number to finalize
+ * @returns Transaction options
  */
-export async function finalizeStory(storyId: number) {
+export async function finalizeRound(storyId: number, roundNum: number) {
+  const functionArgs = [uintCV(storyId), uintCV(roundNum)];
+  return prepareContractCall('finalize-round', functionArgs);
+}
+
+/**
+ * Fund a story's bounty pool
+ * @param storyId - Story ID
+ * @param amount - Amount in microSTX
+ * @returns Transaction options
+ */
+export async function fundBounty(storyId: number, amount: number) {
+  const functionArgs = [uintCV(storyId), uintCV(amount)];
+  return prepareContractCall('fund-bounty', functionArgs);
+}
+
+/**
+ * Seal a story and distribute rewards
+ * @param storyId - Story ID
+ * @returns Transaction options
+ */
+export async function sealStory(storyId: number) {
   const functionArgs = [uintCV(storyId)];
-
-  return prepareContractCall('finalize-story', functionArgs);
+  return prepareContractCall('seal-story', functionArgs);
 }
 
+// ===========================================
+// READ-ONLY QUERY FUNCTIONS
+// ===========================================
+
 /**
- * EXAMPLE: Get Story Details (Read-Only)
- * Replace with your actual get-story function
+ * Get story data
+ * @param storyId - Story ID
+ * @returns Story data or null
  */
 export async function getStory(storyId: number) {
   return await callReadOnly('get-story', [uintCV(storyId)]);
 }
 
 /**
- * EXAMPLE: Get All Stories (Read-Only)
- * Replace with your actual get-all-stories function
+ * Get round data
+ * @param storyId - Story ID
+ * @param roundNum - Round number
+ * @returns Round data or null
  */
-export async function getAllStories() {
-  // First get the total count
-  const totalStories = await callReadOnly<number>('get-story-count');
-
-  // Then fetch each story
-  const stories = [];
-  for (let i = 0; i < totalStories; i++) {
-    const story = await getStory(i);
-    if (story) stories.push(story);
-  }
-
-  return stories;
+export async function getRound(storyId: number, roundNum: number) {
+  return await callReadOnly('get-round', [uintCV(storyId), uintCV(roundNum)]);
 }
 
 /**
- * EXAMPLE: Mint Story NFT (Contract Call)
- * Replace with your actual mint-nft function
+ * Get submission data
+ * @param submissionId - Submission ID
+ * @returns Submission data or null
  */
-export async function mintStoryNFT(storyId: number, recipientAddress: string) {
-  const functionArgs = [uintCV(storyId), principalCV(recipientAddress)];
+export async function getSubmission(submissionId: number) {
+  return await callReadOnly('get-submission', [uintCV(submissionId)]);
+}
 
-  return prepareContractCall('mint-story-nft', functionArgs);
+/**
+ * Get story chain block data
+ * @param storyId - Story ID
+ * @param blockIndex - Block index in the chain
+ * @returns Block data or null
+ */
+export async function getStoryChainBlock(storyId: number, blockIndex: number) {
+  return await callReadOnly('get-story-chain-block', [
+    uintCV(storyId),
+    uintCV(blockIndex),
+  ]);
+}
+
+/**
+ * Check if a user has voted in a round
+ * @param storyId - Story ID
+ * @param roundNum - Round number
+ * @param voter - Voter's address
+ * @returns true if voted, false otherwise
+ */
+export async function hasVoted(
+  storyId: number,
+  roundNum: number,
+  voter: string
+) {
+  return await callReadOnly('has-voted', [
+    uintCV(storyId),
+    uintCV(roundNum),
+    principalCV(voter),
+  ]);
+}
+
+/**
+ * Get user's vote in a round
+ * @param storyId - Story ID
+ * @param roundNum - Round number
+ * @param voter - Voter's address
+ * @returns Submission ID they voted for, or null
+ */
+export async function getUserVote(
+  storyId: number,
+  roundNum: number,
+  voter: string
+) {
+  return await callReadOnly('get-user-vote', [
+    uintCV(storyId),
+    uintCV(roundNum),
+    principalCV(voter),
+  ]);
+}
+
+/**
+ * Get contributor statistics
+ * @param storyId - Story ID
+ * @param contributor - Contributor's address
+ * @returns Contributor stats (block-count)
+ */
+export async function getContributorStats(
+  storyId: number,
+  contributor: string
+) {
+  return await callReadOnly('get-contributor-stats', [
+    uintCV(storyId),
+    principalCV(contributor),
+  ]);
+}
+
+/**
+ * Get number of submissions in a round
+ * @param storyId - Story ID
+ * @param roundNum - Round number
+ * @returns Number of submissions
+ */
+export async function getRoundSubmissionCount(
+  storyId: number,
+  roundNum: number
+) {
+  return await callReadOnly('get-round-submission-count', [
+    uintCV(storyId),
+    uintCV(roundNum),
+  ]);
+}
+
+/**
+ * Get submission at index in a round
+ * @param storyId - Story ID
+ * @param roundNum - Round number
+ * @param index - Index in the submissions list
+ * @returns Submission data or null
+ */
+export async function getRoundSubmissionAt(
+  storyId: number,
+  roundNum: number,
+  index: number
+) {
+  return await callReadOnly('get-round-submission-at', [
+    uintCV(storyId),
+    uintCV(roundNum),
+    uintCV(index),
+  ]);
+}
+
+/**
+ * Check if voting is currently active
+ * @param storyId - Story ID
+ * @param roundNum - Round number
+ * @returns true if voting is active, false otherwise
+ */
+export async function isVotingActive(storyId: number, roundNum: number) {
+  return await callReadOnly('is-voting-active', [
+    uintCV(storyId),
+    uintCV(roundNum),
+  ]);
+}
+
+/**
+ * Check if a round can be finalized
+ * @param storyId - Story ID
+ * @param roundNum - Round number
+ * @returns true if round can be finalized, false otherwise
+ */
+export async function canFinalizeRound(storyId: number, roundNum: number) {
+  return await callReadOnly('can-finalize-round', [
+    uintCV(storyId),
+    uintCV(roundNum),
+  ]);
+}
+
+/**
+ * Get the winning submission for a round
+ * @param storyId - Story ID
+ * @param roundNum - Round number
+ * @returns Winning submission ID or error
+ */
+export async function getWinningSubmission(storyId: number, roundNum: number) {
+  return await callReadOnly('get-winning-submission', [
+    uintCV(storyId),
+    uintCV(roundNum),
+  ]);
+}
+
+// ===========================================
+// UTILITY FUNCTIONS
+// ===========================================
+
+/**
+ * Get all submissions for a round
+ * @param storyId - Story ID
+ * @param roundNum - Round number
+ * @returns Array of submissions
+ */
+export async function getAllRoundSubmissions(
+  storyId: number,
+  roundNum: number
+) {
+  const count = await getRoundSubmissionCount(storyId, roundNum);
+  const submissions = [];
+
+  for (let i = 0; i < count; i++) {
+    const submissionData = await getRoundSubmissionAt(storyId, roundNum, i);
+    if (submissionData) {
+      const submissionId = submissionData['submission-id'];
+      const fullSubmission = await getSubmission(submissionId);
+      if (fullSubmission) {
+        submissions.push({
+          id: submissionId,
+          ...fullSubmission,
+        });
+      }
+    }
+  }
+
+  return submissions;
+}
+
+/**
+ * Get complete story chain (all finalized blocks)
+ * @param storyId - Story ID
+ * @returns Array of finalized blocks
+ */
+export async function getCompleteStoryChain(storyId: number) {
+  const storyData = await getStory(storyId);
+  if (!storyData) return [];
+
+  const totalBlocks = storyData['total-blocks'];
+  const chain = [];
+
+  for (let i = 0; i < totalBlocks; i++) {
+    const blockData = await getStoryChainBlock(storyId, i);
+    if (blockData) {
+      chain.push({
+        blockIndex: i,
+        ...blockData,
+      });
+    }
+  }
+
+  return chain;
 }
