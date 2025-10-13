@@ -19,7 +19,8 @@ import { Mic, Link, Award } from 'lucide-react-native';
 import { Button } from '../components/Button';
 import { useAppStore } from '../store/useAppStore';
 import { useWallet } from '../contexts/WalletContext';
-import { defaultUser, mockBadges } from '../utils/mockData';
+import { useContract } from '../hooks/useContract';
+// Mock data imports removed - using real blockchain data
 
 const { width } = Dimensions.get('window');
 
@@ -52,10 +53,13 @@ export default function OnboardingScreen() {
   const [isCreatingAccount, setIsCreatingAccount] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
+  const [isRegisteringUser, setIsRegisteringUser] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
   const { setUser, setHasCompletedOnboarding } = useAppStore();
-  const { createNewWallet, loginWithMnemonic, address } = useWallet();
+  const { createNewWallet, loginWithMnemonic, address, getPrivateKey } =
+    useWallet();
+  const { registerUserOnChain, isConnected } = useContract();
 
   const isAuthSlide = currentIndex === slides.length;
   const isWalletSlide = currentIndex === slides.length + 1;
@@ -129,20 +133,73 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handleGetStarted = () => {
-    if (username.trim() && address) {
+  const handleGetStarted = async () => {
+    if (!username.trim() || !address) {
+      Alert.alert('Error', 'Please enter a username');
+      return;
+    }
+
+    if (!isConnected) {
+      Alert.alert(
+        'Wallet Not Connected',
+        'Please ensure your wallet is connected before registering.'
+      );
+      return;
+    }
+
+    setIsRegisteringUser(true);
+    setLoadingMessage('Registering username on blockchain...');
+
+    try {
+      // Call the smart contract to register the user
+      const txId = await registerUserOnChain(username.trim());
+
+      if (!txId) {
+        // Transaction failed or was rejected
+        Alert.alert(
+          'Registration Failed',
+          'Could not register your username on the blockchain. Please try again.'
+        );
+        setIsRegisteringUser(false);
+        setLoadingMessage('');
+        return;
+      }
+
+      // Transaction was broadcast successfully
+      setLoadingMessage('Username registered! Setting up your profile...');
+
+      // Wait a bit for visual feedback
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Create the user with minimal data - real data will be fetched from blockchain
       const newUser = {
-        ...defaultUser,
         username: username.trim(),
-        badges: mockBadges,
         walletAddress: address,
-        walletBalance: 100, // Starting balance
+        privateKey: getPrivateKey() || '',
+        walletBalance: 0, // Will be fetched from blockchain
         profileIcon: '👤',
-        nfts: [],
+        badges: [], // Will be fetched from blockchain activity
+        contributedStories: [], // Will be updated based on blockchain activity
+        totalRecordings: 0, // Will be updated based on blockchain activity
+        totalVotes: 0, // Will be updated based on blockchain activity
+        xp: 0, // Will be updated based on blockchain activity
+        level: 1,
+        nfts: [], // Will be fetched from blockchain
       };
+
       setUser(newUser);
       setHasCompletedOnboarding(true);
+      setIsRegisteringUser(false);
+      setLoadingMessage('');
       router.replace('/(tabs)');
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      Alert.alert(
+        'Registration Failed',
+        error.message || 'An unexpected error occurred. Please try again.'
+      );
+      setIsRegisteringUser(false);
+      setLoadingMessage('');
     }
   };
 
@@ -356,7 +413,8 @@ export default function OnboardingScreen() {
           <Button
             title="Get Started"
             onPress={handleGetStarted}
-            disabled={!username.trim()}
+            disabled={!username.trim() || isRegisteringUser}
+            loading={isRegisteringUser}
             size="large"
             className="w-full"
           />
@@ -371,18 +429,31 @@ export default function OnboardingScreen() {
       </View>
 
       {/* Loading Overlay */}
-      <Modal visible={isProcessing} transparent={true} animationType="fade">
+      <Modal
+        visible={isProcessing || isRegisteringUser}
+        transparent={true}
+        animationType="fade"
+      >
         <View className="flex-1 justify-center items-center bg-black/80">
           <View className="bg-card rounded-2xl p-xl items-center min-w-[280px] border-2 border-primary">
             <View className="w-20 h-20 rounded-full bg-primary/20 justify-center items-center mb-lg">
               <ActivityIndicator size="large" color="#FF2E63" />
             </View>
             <Text className="text-h3 text-text-primary mb-sm text-center">
-              {isCreatingAccount ? 'Creating Wallet' : 'Restoring Wallet'}
+              {isRegisteringUser
+                ? 'Registering on Blockchain'
+                : isCreatingAccount
+                ? 'Creating Wallet'
+                : 'Restoring Wallet'}
             </Text>
             <Text className="text-body text-text-secondary text-center">
               {loadingMessage}
             </Text>
+            {isRegisteringUser && (
+              <Text className="text-caption text-accent mt-md text-center">
+                💫 Broadcasting transaction to Stacks blockchain...
+              </Text>
+            )}
           </View>
         </View>
       </Modal>

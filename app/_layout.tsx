@@ -2,9 +2,9 @@ import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, Image } from 'react-native';
-import { useFrameworkReady } from '@/hooks/useFrameworkReady';
-import { useAppStore } from '@/store/useAppStore';
-import { WalletProvider, useWallet } from '@/contexts/WalletContext';
+import { useFrameworkReady } from '../hooks/useFrameworkReady';
+import { useAppStore } from '../store/useAppStore';
+import { WalletProvider, useWallet } from '../contexts/WalletContext';
 import '../global.css';
 
 function RootNavigator() {

@@ -1,6 +1,7 @@
 # dependencies
 node_modules/
-
+build-docs/
+./build-docs/
 # expo
 .expo/
 dist/

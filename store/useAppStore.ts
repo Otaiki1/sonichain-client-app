@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, StoryChain, Badge } from '../types';
-import { defaultUser, mockStoryChains, mockBadges } from '../utils/mockData';
+import { defaultUser, mockBadges } from '../utils/mockData'; // Only keep mockBadges for badge structure
+import { CONTRACT_CONFIG } from '../lib/contract-config';
 
 interface AppState {
   user: User | null;
@@ -22,9 +23,10 @@ interface AppState {
   resetData: () => Promise<void>;
 }
 
+// PRODUCTION MODE: Always empty - blockchain stories only!
 export const useAppStore = create<AppState>((set, get) => ({
   user: null,
-  storyChains: mockStoryChains,
+  storyChains: [], // ✅ PRODUCTION: Empty array - blockchain data ONLY
   hasCompletedOnboarding: false,
   isLoading: true,
 
@@ -134,27 +136,21 @@ export const useAppStore = create<AppState>((set, get) => ({
       const user = userJson ? JSON.parse(userJson) : null;
       const hasCompletedOnboarding = onboardingJson === 'true';
 
-      let storyChains = storyChainsJson
-        ? JSON.parse(storyChainsJson)
-        : mockStoryChains;
+      // PRODUCTION: Load ONLY blockchain stories from cache
+      // No mock data ever!
+      let storyChains: StoryChain[] = [];
 
-      // Auto-migrate: merge new fields from mock data if missing
       if (storyChainsJson) {
-        storyChains = storyChains.map((cachedStory: StoryChain) => {
-          const mockStory = mockStoryChains.find(
-            (m) => m.id === cachedStory.id
-          );
-          if (mockStory) {
-            return {
-              ...cachedStory,
-              description: cachedStory.description ?? mockStory.description,
-              bountyStx: cachedStory.bountyStx ?? mockStory.bountyStx,
-              votingWindowHours:
-                cachedStory.votingWindowHours ?? mockStory.votingWindowHours,
-            };
-          }
-          return cachedStory;
-        });
+        const parsed = JSON.parse(storyChainsJson);
+        // Filter: Only blockchain stories (have creator field or numeric IDs)
+        storyChains = parsed.filter(
+          (story: StoryChain) =>
+            story.creator || // Has creator from blockchain
+            (story.id && /^\d+$/.test(story.id)) // Numeric ID from blockchain
+        );
+        console.log(
+          `🔄 Loaded ${storyChains.length} blockchain stories from cache`
+        );
       }
 
       set({
@@ -191,10 +187,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       await AsyncStorage.clear();
       set({
         user: null,
-        storyChains: mockStoryChains,
+        storyChains: [], // ✅ PRODUCTION: Empty - blockchain will populate
         hasCompletedOnboarding: false,
         isLoading: false,
       });
+      console.log('✅ PRODUCTION: Data reset - ready for blockchain stories');
     } catch (error) {
       console.error('Failed to reset data:', error);
     }

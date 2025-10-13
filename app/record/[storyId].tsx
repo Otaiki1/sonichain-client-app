@@ -6,18 +6,38 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Alert,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Mic, Square, Play, RotateCcw } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Mic,
+  Square,
+  Play,
+  RotateCcw,
+  Copy,
+  ExternalLink,
+} from 'lucide-react-native';
 import { Audio } from 'expo-av';
 import { theme } from '../../constants/theme';
 import { Button } from '../../components/Button';
+import { GameButton } from '../../components/GameButton';
+import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
+import { usePinata } from '../../hooks/usePinata';
+import { useContract } from '../../hooks/useContract';
+import { useStories } from '../../hooks/useStories';
 
 export default function RecordScreen() {
   const router = useRouter();
   const { storyId } = useLocalSearchParams();
-  const { user, addVoiceBlock, updateUser, addXP, unlockBadge } = useAppStore();
+  const { user, addVoiceBlock, updateUser, addXP, unlockBadge, storyChains } =
+    useAppStore();
+  const { uploadAudioWithMetadata, isUploading, getPinataUrl } = usePinata();
+  const { submitBlockOnChain, isProcessing, checkVotingActive, fetchStory } =
+    useContract();
+  const { refreshStory } = useStories();
 
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -25,6 +45,15 @@ export default function RecordScreen() {
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [resultData, setResultData] = useState<{
+    success: boolean;
+    title: string;
+    message: string;
+    txId?: string;
+  } | null>(null);
+
+  const story = storyChains.find((s) => s.id === storyId);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -132,29 +161,189 @@ export default function RecordScreen() {
     setIsPlaying(false);
   };
 
-  const handleSubmit = () => {
-    if (!recordedUri || !user) return;
-
-    const newBlock = {
-      id: Date.now().toString(),
-      username: user.username,
-      audioUri: recordedUri,
-      duration: recordingDuration,
-      timestamp: new Date().toISOString(),
-      votes: 0,
-    };
-
-    addVoiceBlock(storyId as string, newBlock);
-    updateUser({
-      totalRecordings: user.totalRecordings + 1,
-    });
-    addXP(25);
-
-    if (user.totalRecordings === 0) {
-      unlockBadge('badge1');
+  const handleSubmit = async () => {
+    if (!recordedUri || !user || !story) {
+      Alert.alert('Error', 'Missing required data');
+      return;
     }
 
-    router.back();
+    if (isUploading || isProcessing) {
+      return; // Prevent double submission
+    }
+
+    try {
+      // Step 1: Validate submission conditions
+      console.log('🔍 Validating submission conditions...');
+
+      // Check if story exists and is active
+      if (story.status !== 'active') {
+        Alert.alert(
+          'Story Not Active',
+          'This story is no longer accepting submissions.'
+        );
+        return;
+      }
+
+      // Check if storyId is a transaction ID (starts with 0x) or numeric ID
+      const isTransactionId = (storyId as string).startsWith('0x');
+
+      if (!isTransactionId) {
+        // Only validate against blockchain if we have a numeric story ID
+        Alert.alert('🔍 Fetching story from blockchain...', storyId as string);
+        const blockchainStory = await fetchStory(parseInt(storyId as string));
+        Alert.alert('🔍 Blockchain story:', blockchainStory as string);
+        if (!blockchainStory) {
+          Alert.alert('Error', 'Story not found on blockchain');
+          return;
+        }
+
+        if (blockchainStory['is-sealed']) {
+          Alert.alert(
+            'Story Sealed',
+            'This story has been sealed and is no longer accepting submissions.'
+          );
+          return;
+        }
+      } else {
+        console.log(
+          '⚠️ Using transaction ID as story ID - skipping blockchain validation'
+        );
+      }
+
+      // Check if voting is active (can't submit during voting)
+      if (!isTransactionId) {
+        const currentRound = 1; // Default to round 1
+        const votingActive = await checkVotingActive(
+          parseInt(storyId as string),
+          currentRound
+        );
+
+        if (votingActive) {
+          Alert.alert(
+            'Voting In Progress',
+            'Cannot submit new recordings while voting is active. Please wait for the current round to complete.'
+          );
+          return;
+        }
+      }
+
+      // Step 2: Upload audio to IPFS
+      console.log('📤 Uploading audio to IPFS...');
+      const metadata = {
+        storyId: story.id,
+        username: user.username,
+        duration: recordingDuration,
+        timestamp: new Date().toISOString(),
+        blockNumber: story.blocks.length + 1,
+        walletAddress: user.walletAddress || '',
+        storyTitle: story.title,
+        category: story.category,
+      };
+
+      const ipfsResult = await uploadAudioWithMetadata(
+        recordedUri,
+        metadata,
+        `story-${story.id}-block-${story.blocks.length + 1}.m4a`,
+        `metadata-${story.id}-block-${story.blocks.length + 1}.json`
+      );
+
+      if (!ipfsResult) {
+        Alert.alert(
+          'IPFS Upload Failed',
+          'Could not upload audio to IPFS. Please try again.'
+        );
+        return;
+      }
+
+      console.log('✅ Audio uploaded to IPFS:', ipfsResult.audioCid);
+
+      // Step 3: Submit to blockchain
+      console.log('⛓️ Submitting to blockchain...');
+
+      // For now, we'll use a placeholder story ID since we're using transaction IDs
+      // In a real implementation, you'd need to map transaction IDs to actual story IDs
+      const storyIdForSubmission = isTransactionId
+        ? 1
+        : parseInt(storyId as string);
+
+      const txId = await submitBlockOnChain(
+        storyIdForSubmission,
+        ipfsResult.audioCid // Use IPFS hash as URI
+      );
+
+      if (!txId) {
+        Alert.alert(
+          'Blockchain Submission Failed',
+          'Could not submit your recording to the blockchain. Please try again.'
+        );
+        return;
+      }
+
+      console.log('✅ Submitted to blockchain, txId:', txId);
+
+      // Step 4: Update local state
+      const newBlock = {
+        id: txId, // Use transaction ID as block ID
+        username: user.username,
+        audioUri: ipfsResult.audioUrl, // Gateway URL for playback
+        audioCid: ipfsResult.audioCid, // IPFS hash
+        metadataCid: ipfsResult.metadataCid, // Metadata hash
+        duration: recordingDuration,
+        timestamp: new Date().toISOString(),
+        votes: 0,
+      };
+
+      // Add to local store for immediate display
+      addVoiceBlock(storyId as string, newBlock);
+
+      // Update user stats
+      updateUser({
+        totalRecordings: user.totalRecordings + 1,
+      });
+      addXP(25); // Award XP for submission
+
+      // Unlock first recording badge
+      if (user.totalRecordings === 0) {
+        unlockBadge('badge1');
+      }
+
+      // Refresh story data from blockchain
+      await refreshStory(parseInt(storyId as string));
+
+      console.log('🎉 Submission complete!');
+
+      // Show success popup
+      setResultData({
+        success: true,
+        title: '🎤 Recording Submitted!',
+        message: `Your voice block has been added to "${story.title}" on the blockchain!`,
+        txId: txId,
+      });
+      setShowResultModal(true);
+    } catch (error: any) {
+      console.error('❌ Submission error:', error);
+
+      // Determine error message
+      let errorMessage =
+        error.message || 'An unexpected error occurred. Please try again.';
+
+      if (error.message?.includes('ERR-ALREADY-SUBMITTED')) {
+        errorMessage = 'You have already submitted a recording for this round.';
+      } else if (error.message?.includes('ERR-VOTING-CLOSED')) {
+        errorMessage = 'The voting window has closed for this round.';
+      } else if (error.message?.includes('ERR-STORY-SEALED')) {
+        errorMessage =
+          'This story has been sealed and is no longer accepting submissions.';
+      }
+
+      // Show error popup
+      setResultData({
+        success: false,
+        title: '❌ Submission Failed',
+        message: errorMessage,
+      });
+      setShowResultModal(true);
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -269,14 +458,131 @@ export default function RecordScreen() {
 
       {recordedUri && (
         <View style={styles.footer}>
-          <Button
-            title="Submit Recording"
+          <GameButton
+            title={
+              isUploading
+                ? 'Uploading to IPFS...'
+                : isProcessing
+                ? 'Submitting to Blockchain...'
+                : 'Submit Recording'
+            }
             onPress={handleSubmit}
+            disabled={isUploading || isProcessing}
+            loading={isUploading || isProcessing}
             size="large"
+            variant="accent"
             className="w-full"
           />
         </View>
       )}
+
+      {/* Game-Style Result Popup Modal */}
+      <Modal
+        visible={showResultModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => {
+          setShowResultModal(false);
+          if (resultData?.success) {
+            router.back();
+          }
+        }}
+      >
+        <View className="flex-1 justify-center items-center bg-black/90 px-lg">
+          <View
+            className={`rounded-3xl p-xl w-full max-w-md border-4 ${
+              resultData?.success
+                ? 'bg-gradient-to-br from-accent/20 to-secondary/20 border-accent'
+                : 'bg-gradient-to-br from-red-500/20 to-orange-500/20 border-red-500'
+            }`}
+            style={{
+              shadowColor: resultData?.success ? '#00FFFF' : '#FF0000',
+              shadowOffset: { width: 0, height: 0 },
+              shadowRadius: 30,
+              shadowOpacity: 0.8,
+            }}
+          >
+            {/* Animated Icon */}
+            <View className="items-center mb-lg">
+              <View
+                className={`w-32 h-32 rounded-full items-center justify-center mb-md ${
+                  resultData?.success
+                    ? 'bg-accent/30 border-4 border-accent'
+                    : 'bg-red-500/30 border-4 border-red-500'
+                }`}
+                style={{
+                  shadowColor: resultData?.success ? '#00FFFF' : '#FF0000',
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowRadius: 20,
+                  shadowOpacity: 1,
+                }}
+              >
+                <Text className="text-7xl">
+                  {resultData?.success ? '🎤' : '💥'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Title */}
+            <Text
+              className={`text-h1 text-center mb-md font-bold ${
+                resultData?.success ? 'text-accent' : 'text-red-500'
+              }`}
+            >
+              {resultData?.title}
+            </Text>
+
+            {/* Message */}
+            <Text className="text-body text-text-primary text-center mb-lg leading-6">
+              {resultData?.message}
+            </Text>
+
+            {/* Transaction ID (for success) */}
+            {resultData?.success && resultData?.txId && (
+              <View className="bg-background/50 rounded-xl p-md mb-lg border border-accent/30">
+                <Text className="text-caption text-text-secondary text-center mb-xs">
+                  ⛓️ Blockchain Transaction
+                </Text>
+                <Text
+                  className="text-small text-accent font-mono text-center"
+                  numberOfLines={1}
+                >
+                  {resultData.txId.substring(0, 8)}...
+                  {resultData.txId.substring(resultData.txId.length - 6)}
+                </Text>
+              </View>
+            )}
+
+            {/* XP Earned (for success) */}
+            {resultData?.success && (
+              <View className="bg-secondary/20 rounded-xl p-md mb-lg border border-secondary/30">
+                <Text className="text-h3 text-secondary text-center font-bold">
+                  +25 XP
+                </Text>
+                <Text className="text-caption text-text-secondary text-center">
+                  Experience Points Earned!
+                </Text>
+              </View>
+            )}
+
+            {/* Action Buttons */}
+            <View className="gap-md">
+              <GameButton
+                title={resultData?.success ? 'Awesome!' : 'Okay'}
+                onPress={() => {
+                  setShowResultModal(false);
+                  if (resultData?.success) {
+                    router.back();
+                  }
+                }}
+                size="large"
+                variant={resultData?.success ? 'accent' : 'secondary'}
+                className="w-full"
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

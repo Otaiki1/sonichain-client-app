@@ -516,46 +516,227 @@ The project uses `@/` alias for clean imports:
 
 ## 🔌 Blockchain Integration (Stacks)
 
-The project has a complete Stacks blockchain integration layer ready for your smart contract:
+### ✅ **FULLY INTEGRATED - Production Ready!**
+
+The app is **100% integrated** with Stacks blockchain using the Sonichain Clarity smart contract. All core features interact directly with the blockchain.
+
+### **Integration Status**
+
+- ✅ **User Registration**: Register username on blockchain
+- ✅ **Story Creation**: Create stories with IPFS metadata stored on-chain
+- ✅ **Audio Submission**: Submit voice blocks to blockchain with IPFS hashes
+- ✅ **Voting System**: Vote on submissions with blockchain consensus
+- ✅ **Round Finalization**: Select winners and mint NFTs
+- ✅ **Bounty System**: Fund bounties and distribute rewards
+- ✅ **Story Sealing**: Finalize stories and distribute funds
+- ✅ **Data Caching**: Reduce blockchain calls with smart caching
+- ✅ **Real-time Updates**: Auto-sync with blockchain every 30s
+- ✅ **Error Handling**: Comprehensive error handling with retry logic
+
+### **Architecture**
+
+```
+┌─────────────────────────────────────────┐
+│     UI Layer (React Native)             │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│     Hooks Layer                         │
+│  • useContract   • useStories           │
+│  • useUserData   • useCache             │
+│  • usePinata     • useRealTimeUpdates   │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│     Utilities                           │
+│  • contract-utils  • errorHandler       │
+│  • stx-utils       • validation         │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│     External Services                   │
+│  • Stacks Blockchain (Clarity)          │
+│  • IPFS/Pinata (Audio Storage)          │
+│  • AsyncStorage (Local Cache)           │
+└─────────────────────────────────────────┘
+```
+
+### **File Structure**
+
+```
+lib/
+├── contract-config.ts        # ✅ Contract configuration & constants
+├── contract-utils.ts         # ✅ All contract functions
+├── stx-utils.ts             # ✅ STX utilities
+└── pinata-config.ts         # ✅ IPFS configuration
+
+hooks/
+├── useContract.ts           # ✅ Contract interactions
+├── useUserData.ts           # ✅ User blockchain data
+├── useStories.ts            # ✅ Story blockchain data
+├── useCache.ts              # ✅ Data caching
+├── useRealTimeUpdates.ts    # ✅ Auto-sync
+├── useTransactionTracking.ts # ✅ Transaction history
+└── usePinata.ts             # ✅ IPFS uploads
+
+contexts/
+└── WalletContext.tsx        # ✅ Wallet management
+
+utils/
+├── errorHandler.ts          # ✅ Error handling
+└── validation.ts            # ✅ Validation utilities
+```
+
+### **Quick Setup**
+
+#### **1. Contract Configuration**
+
+Update `lib/contract-config.ts`:
+
+```typescript
+CONTRACT_ADDRESS: 'YOUR_DEPLOYED_CONTRACT',
+CONTRACT_NAME: 'Sonichain',
+NETWORK: STACKS_TESTNET, // or STACKS_MAINNET
+```
+
+#### **2. IPFS Configuration**
+
+Create `.env` file:
+
+```env
+EXPO_PUBLIC_PINATA_JWT=your_jwt_here
+EXPO_PUBLIC_PINATA_GATEWAY=your-gateway.mypinata.cloud
+```
+
+#### **3. Run the App**
+
+```bash
+npm install
+npm run dev
+```
+
+### **Example Usage**
+
+#### **Register User**
+
+```typescript
+const { registerUserOnChain } = useContract();
+const txId = await registerUserOnChain('alice');
+```
+
+#### **Create Story**
+
+```typescript
+const { createStoryOnChain } = useContract();
+const { uploadMetadata } = usePinata();
+
+// Upload metadata to IPFS
+const ipfs = await uploadMetadata(metadata, 'story.json');
+
+// Create on blockchain
+const txId = await createStoryOnChain(ipfs.cid);
+```
+
+#### **Submit Audio**
+
+```typescript
+const { submitBlockOnChain } = useContract();
+const { uploadAudioWithMetadata } = usePinata();
+
+// Upload audio to IPFS
+const ipfs = await uploadAudioWithMetadata(
+  uri,
+  metadata,
+  'audio.m4a',
+  'meta.json'
+);
+
+// Submit to blockchain
+const txId = await submitBlockOnChain(storyId, ipfs.audioCid);
+```
+
+#### **Vote**
+
+```typescript
+const { voteOnChain, checkHasVoted } = useContract();
+
+// Check if already voted
+const hasVoted = await checkHasVoted(storyId, roundNum, address);
+
+if (!hasVoted) {
+  const txId = await voteOnChain(submissionId);
+}
+```
+
+### **Documentation**
+
+- 📖 `CONTRACT_INTEGRATION_README.md` - Complete integration docs
+- 📖 `CONTRACT_INTEGRATION_GUIDE.md` - Step-by-step integration guide
+- 📖 `DEPLOYMENT_CHECKLIST.md` - Pre-deployment validation
+- 📖 `PINATA_SETUP.md` - IPFS setup guide
+
+### **Testing**
+
+```bash
+# Run integration validation
+npm run validate-integration
+
+# Run tests
+npm test
+```
+
+See `CONTRACT_INTEGRATION_README.md` for complete blockchain integration documentation.
+
+## 📦 IPFS Integration (Pinata)
+
+The project includes complete Pinata/IPFS integration for decentralized audio storage:
 
 ### Structure
 
 ```
 lib/
-├── contract-config.ts    # Contract address, network settings
-├── contract-utils.ts     # Contract function wrappers
-├── stx-utils.ts         # Balance, transactions, utilities
-└── INTEGRATION_GUIDE.md # Detailed integration guide
+└── pinata-config.ts          # Pinata JWT, gateway config
 
 hooks/
-└── useContract.ts       # Hook for contract interactions
-
-contexts/
-└── WalletContext.tsx    # Wallet state management
+└── usePinata.ts             # Hook for IPFS uploads
 ```
 
 ### Quick Setup
 
-1. **Deploy your Clarity smart contract** to Stacks testnet/mainnet
-2. **Update `lib/contract-config.ts`** with your contract address and name
-3. **Implement your functions** in `lib/contract-utils.ts`
-4. **Use in components** via `useContract()` hook
+1. **Create Pinata account** at https://app.pinata.cloud
+2. **Get API key (JWT)** from dashboard → API Keys
+3. **Get gateway URL** from dashboard → Gateways
+4. **Add to environment**:
+   ```bash
+   EXPO_PUBLIC_PINATA_JWT=your_jwt_here
+   EXPO_PUBLIC_PINATA_GATEWAY=your-gateway.mypinata.cloud
+   ```
 
 ### Example Usage
 
 ```typescript
-import { useContract } from '@/hooks/useContract';
+import { usePinata } from '@/hooks/usePinata';
 
-const { isConnected, address, createStoryOnChain, sendSTX } = useContract();
+const { uploadAudio, uploadMetadata, isUploading } = usePinata();
 
-// Create story on blockchain
-await createStoryOnChain('Title', 'Mystery', 10, 5);
+// Upload audio to IPFS
+const result = await uploadAudio(audioUri, 'recording.m4a');
+console.log('IPFS CID:', result.cid);
+console.log('Gateway URL:', result.url);
 
-// Send STX
-await sendSTX('SP1234...', stxToMicroStx(5), 'Bounty payment');
+// Upload with metadata
+const ipfsData = await uploadAudioWithMetadata(audioUri, {
+  storyId: '123',
+  username: 'alice',
+  duration: 30,
+  timestamp: new Date().toISOString(),
+});
+
+// Store CID on blockchain
+await submitBlockOnChain(storyId, ipfsData.audioCid);
 ```
 
-See `lib/INTEGRATION_GUIDE.md` for complete documentation.
+See `PINATA_SETUP.md` for complete documentation and examples.
 
 ## 🔌 Backend Integration (Supabase)
 

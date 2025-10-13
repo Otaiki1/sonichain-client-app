@@ -104,10 +104,10 @@ export const AnimatedStoryCard: React.FC<AnimatedStoryCardProps> = ({
         </View>
 
         {/* Bounty and Voting Window */}
-        {(story.bountyStx || story.votingWindowHours) && (
-          <View className="flex-row gap-md mb-sm flex-wrap relative z-10">
-            {story.bountyStx && (
-              <View className="flex-row items-center bg-secondary/20 px-sm py-xs rounded-md border border-secondary/50">
+        {(!!story.bountyStx || !!story.votingWindowHours) && (
+          <View className="flex-row mb-sm flex-wrap relative z-10">
+            {!!story.bountyStx && (
+              <View className="flex-row items-center bg-secondary/20 px-sm py-xs rounded-md border border-secondary/50 mr-md">
                 <Coins size={14} color="#FF6B9D" />
                 <Text className="text-small text-secondary font-bold ml-xs">
                   {story.bountyStx} STX
@@ -115,7 +115,7 @@ export const AnimatedStoryCard: React.FC<AnimatedStoryCardProps> = ({
               </View>
             )}
 
-            {story.votingWindowHours && (
+            {!!story.votingWindowHours && (
               <View className="flex-row items-center bg-accent/20 px-sm py-xs rounded-md border border-accent/50">
                 <Clock size={14} color="#00FFFF" />
                 <Text className="text-small text-accent font-bold ml-xs">

@@ -10,26 +10,21 @@ import { GameButton } from '../../components/GameButton';
 import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
 import { SoundEffects } from '../../utils/soundEffects';
-
-const mockSubmissions = [
-  {
-    id: 'sub1',
-    username: 'EpicStoryteller',
-    audioUri: 'mock-sub-1',
-    duration: 24,
-  },
-  {
-    id: 'sub2',
-    username: 'VoiceMaster',
-    audioUri: 'mock-sub-2',
-    duration: 28,
-  },
-];
+import { useContract } from '../../hooks/useContract';
+import { useStories } from '../../hooks/useStories';
 
 export default function VotingScreen() {
   const router = useRouter();
   const { storyId } = useLocalSearchParams();
   const { user, updateUser, addXP, unlockBadge, storyChains } = useAppStore();
+  const {
+    voteOnChain,
+    checkHasVoted,
+    checkVotingActive,
+    isProcessing,
+    address,
+  } = useContract();
+  const { fetchCurrentRound, refreshStory } = useStories();
 
   const story = storyChains.find((s) => s.id === storyId);
 
@@ -39,11 +34,66 @@ export default function VotingScreen() {
   const [hasVoted, setHasVoted] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [votingActive, setVotingActive] = useState(false);
+  const [roundData, setRoundData] = useState<any>(null);
 
   // Animation values
   const resultsOpacity = useRef(new Animated.Value(0)).current;
   const resultsScale = useRef(new Animated.Value(0.8)).current;
   const emojiRotate = useRef(new Animated.Value(0)).current;
+
+  // Fetch voting data from blockchain
+  useEffect(() => {
+    const loadVotingData = async () => {
+      if (!storyId || !address) return;
+
+      setIsLoading(true);
+
+      try {
+        const currentRound = 1; // Default to round 1
+
+        // Fetch round data and submissions
+        const data = await fetchCurrentRound(
+          parseInt(storyId as string),
+          currentRound
+        );
+
+        if (data) {
+          setRoundData(data.round);
+          setSubmissions(data.submissions || []);
+        }
+
+        // Check if voting is active
+        const isActive = await checkVotingActive(
+          parseInt(storyId as string),
+          currentRound
+        );
+        setVotingActive(isActive);
+
+        // Check if user has already voted
+        if (address) {
+          const userVoted = await checkHasVoted(
+            parseInt(storyId as string),
+            currentRound,
+            address
+          );
+          setHasVoted(userVoted);
+          if (userVoted) {
+            setShowResults(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading voting data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadVotingData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storyId]); // Only run when story ID changes to prevent excessive API calls
 
   const handleVote = (submissionId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -52,63 +102,110 @@ export default function VotingScreen() {
   };
 
   const submitVote = async () => {
-    if (!selectedSubmission || !user) return;
+    if (!selectedSubmission || !user || !address) {
+      return;
+    }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    SoundEffects.playWhoosh();
+    if (isProcessing) {
+      return; // Prevent double submission
+    }
 
-    setHasVoted(true);
-
-    setTimeout(() => {
-      setShowResults(true);
-      SoundEffects.playSuccess();
-
-      // Animate results
-      Animated.parallel([
-        Animated.timing(resultsOpacity, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.spring(resultsScale, {
-          toValue: 1,
-          damping: 12,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      // Rotate emoji
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(emojiRotate, {
-            toValue: 10,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(emojiRotate, {
-            toValue: -10,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(emojiRotate, {
-            toValue: 0,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-
-      updateUser({ totalVotes: user.totalVotes + 1 });
-      addXP(25);
-
-      if (user.totalVotes === 0) {
-        unlockBadge('badge2');
+    try {
+      // Validate voting is active
+      if (!votingActive) {
+        alert('Voting is not currently active for this round.');
+        return;
       }
-    }, 1000);
 
-    setTimeout(() => {
-      router.back();
-    }, 4000);
+      // Validate user hasn't voted
+      if (hasVoted) {
+        alert('You have already voted in this round.');
+        return;
+      }
+
+      // Submit vote to blockchain
+      console.log('🗳️ Submitting vote for submission:', selectedSubmission);
+
+      const txId = await voteOnChain(parseInt(selectedSubmission));
+
+      if (!txId) {
+        alert('Failed to submit vote. Please try again.');
+        return;
+      }
+
+      console.log('✅ Vote submitted, txId:', txId);
+
+      // Play success feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      SoundEffects.playWhoosh();
+
+      setHasVoted(true);
+
+      setTimeout(() => {
+        setShowResults(true);
+        SoundEffects.playSuccess();
+
+        // Animate results
+        Animated.parallel([
+          Animated.timing(resultsOpacity, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.spring(resultsScale, {
+            toValue: 1,
+            damping: 12,
+            useNativeDriver: true,
+          }),
+        ]).start();
+
+        // Rotate emoji
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(emojiRotate, {
+              toValue: 10,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+            Animated.timing(emojiRotate, {
+              toValue: -10,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+            Animated.timing(emojiRotate, {
+              toValue: 0,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+
+        updateUser({ totalVotes: user.totalVotes + 1 });
+        addXP(25);
+
+        if (user.totalVotes === 0) {
+          unlockBadge('badge2');
+        }
+      }, 1000);
+
+      // Refresh story data from blockchain
+      await refreshStory(parseInt(storyId as string));
+
+      setTimeout(() => {
+        router.back();
+      }, 4000);
+    } catch (error: any) {
+      console.error('❌ Vote submission error:', error);
+
+      // Handle specific errors
+      if (error.message?.includes('ERR-ALREADY-VOTED')) {
+        alert('You have already voted in this round.');
+      } else if (error.message?.includes('ERR-VOTING-CLOSED')) {
+        alert('The voting window has closed.');
+      } else {
+        alert(error.message || 'Failed to submit vote. Please try again.');
+      }
+    }
   };
 
   return (
@@ -175,85 +272,110 @@ export default function VotingScreen() {
 
             {/* Battle Layout */}
             <View className="flex-1 px-lg">
-              {mockSubmissions.map((submission, index) => (
-                <TouchableOpacity
-                  key={submission.id}
-                  onPress={() => handleVote(submission.id)}
-                  activeOpacity={0.9}
-                  className="mb-md"
-                >
-                  <View
-                    className={`rounded-2xl overflow-hidden border-2 ${
-                      selectedSubmission === submission.id
-                        ? 'border-accent'
-                        : 'border-border'
-                    }`}
-                    style={{
-                      shadowColor:
-                        selectedSubmission === submission.id
-                          ? '#00FFFF'
-                          : '#FF2E63',
-                      shadowOffset: { width: 0, height: 0 },
-                      shadowRadius: 15,
-                      shadowOpacity:
-                        selectedSubmission === submission.id ? 0.8 : 0.2,
-                    }}
+              {isLoading ? (
+                <View className="flex-1 justify-center items-center">
+                  <Text className="text-body text-text-secondary">
+                    Loading submissions...
+                  </Text>
+                </View>
+              ) : submissions.length === 0 ? (
+                <View className="flex-1 justify-center items-center px-lg">
+                  <Text className="text-body text-text-secondary text-center">
+                    No submissions yet for this round
+                  </Text>
+                </View>
+              ) : (
+                submissions.map((submission, index) => (
+                  <TouchableOpacity
+                    key={submission.id}
+                    onPress={() => handleVote(submission.id)}
+                    activeOpacity={0.9}
+                    className="mb-md"
                   >
-                    {selectedSubmission === submission.id && (
-                      <LinearGradient
-                        colors={[
-                          'rgba(0, 255, 255, 0.2)',
-                          'rgba(0, 255, 255, 0.05)',
-                        ]}
-                        className="absolute inset-0 z-0"
-                      />
-                    )}
+                    <View
+                      className={`rounded-2xl overflow-hidden border-2 ${
+                        selectedSubmission === submission.id
+                          ? 'border-accent'
+                          : 'border-border'
+                      }`}
+                      style={{
+                        shadowColor:
+                          selectedSubmission === submission.id
+                            ? '#00FFFF'
+                            : '#FF2E63',
+                        shadowOffset: { width: 0, height: 0 },
+                        shadowRadius: 15,
+                        shadowOpacity:
+                          selectedSubmission === submission.id ? 0.8 : 0.2,
+                      }}
+                    >
+                      {selectedSubmission === submission.id && (
+                        <LinearGradient
+                          colors={[
+                            'rgba(0, 255, 255, 0.2)',
+                            'rgba(0, 255, 255, 0.05)',
+                          ]}
+                          className="absolute inset-0 z-0"
+                        />
+                      )}
 
-                    <View className="relative z-10">
-                      <AnimatedVoiceBlock
-                        block={{
-                          id: submission.id,
-                          username: submission.username,
-                          audioUri: submission.audioUri,
-                          duration: submission.duration,
-                          timestamp: new Date().toISOString(),
-                        }}
-                        isPlaying={playingId === submission.id}
-                        onPlayPress={() =>
-                          setPlayingId(
-                            playingId === submission.id ? null : submission.id
-                          )
-                        }
-                      />
-                    </View>
-
-                    {selectedSubmission === submission.id && (
-                      <View
-                        className="absolute top-2 right-2 bg-accent px-sm py-xs rounded-md"
-                        style={{
-                          shadowColor: '#00FFFF',
-                          shadowOffset: { width: 0, height: 0 },
-                          shadowRadius: 10,
-                          shadowOpacity: 0.8,
-                        }}
-                      >
-                        <Text className="text-small text-background font-bold">
-                          ✓ SELECTED
-                        </Text>
+                      <View className="relative z-10">
+                        <AnimatedVoiceBlock
+                          block={{
+                            id: submission.id,
+                            username: submission.username,
+                            audioUri: submission.audioUri,
+                            duration: submission.duration,
+                            timestamp: new Date().toISOString(),
+                          }}
+                          isPlaying={playingId === submission.id}
+                          onPlayPress={() =>
+                            setPlayingId(
+                              playingId === submission.id ? null : submission.id
+                            )
+                          }
+                        />
                       </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
+
+                      {selectedSubmission === submission.id && (
+                        <View
+                          className="absolute top-2 right-2 bg-accent px-sm py-xs rounded-md"
+                          style={{
+                            shadowColor: '#00FFFF',
+                            shadowOffset: { width: 0, height: 0 },
+                            shadowRadius: 10,
+                            shadowOpacity: 0.8,
+                          }}
+                        >
+                          <Text className="text-small text-background font-bold">
+                            ✓ SELECTED
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
 
             {/* Vote Button */}
             <View className="p-lg relative z-10">
               <GameButton
-                title="Submit Vote"
+                title={
+                  isProcessing
+                    ? 'Submitting Vote...'
+                    : hasVoted
+                    ? 'Vote Submitted!'
+                    : 'Submit Vote'
+                }
                 onPress={submitVote}
-                disabled={!selectedSubmission || hasVoted}
-                loading={hasVoted && !showResults}
+                disabled={
+                  !selectedSubmission ||
+                  hasVoted ||
+                  isProcessing ||
+                  !votingActive
+                }
+                loading={isProcessing || (hasVoted && !showResults)}
                 size="large"
                 variant="accent"
                 className="w-full"

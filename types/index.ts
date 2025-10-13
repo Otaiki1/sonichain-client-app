@@ -2,6 +2,8 @@ export interface VoiceBlock {
   id: string;
   username: string;
   audioUri: string;
+  audioCid?: string; // IPFS hash for audio
+  metadataCid?: string; // IPFS hash for metadata
   duration: number;
   timestamp: string;
   votes?: number;
@@ -22,6 +24,18 @@ export interface StoryChain {
   creatorUsername?: string;
   nftMinted?: boolean;
   nftId?: string;
+  metadataCid?: string; // IPFS hash for story metadata
+  metadataUrl?: string; // IPFS gateway URL for metadata
+
+  // Blockchain-specific fields (from Clarity contract)
+  creator?: string; // Creator's principal address
+  createdAt?: number; // Block height when story was created
+  totalBlocks?: number; // Number of finalized blocks in the story chain
+  currentRound?: number; // Current voting round number
+
+  // IPFS-specific fields
+  ipfsHash?: string | null; // IPFS hash from blockchain prompt
+  ipfsMetadata?: any; // Parsed IPFS metadata
 }
 
 export interface User {

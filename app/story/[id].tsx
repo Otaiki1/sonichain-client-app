@@ -1,20 +1,121 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+  Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Clock, Coins } from 'lucide-react-native';
+import { ArrowLeft, Clock, Coins, Lock } from 'lucide-react-native';
 import { AnimatedVoiceBlock } from '../../components/AnimatedVoiceBlock';
 import { GameButton } from '../../components/GameButton';
 import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
+import { useContract } from '../../hooks/useContract';
+import { useStories } from '../../hooks/useStories';
 
 export default function StoryDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  const { storyChains } = useAppStore();
+  const { storyChains, user, updateStoryChain } = useAppStore();
+  const { fetchStoryFromBlockchain, fetchCurrentRound, refreshStory } =
+    useStories();
+  const {
+    checkVotingActive,
+    checkHasVoted,
+    fundBountyOnChain,
+    sealStoryOnChain,
+    isProcessing,
+    address,
+  } = useContract();
   const [playingBlockId, setPlayingBlockId] = useState<string | null>(null);
+  const [story, setStory] = useState<any>(null);
+  const [currentRound, setCurrentRound] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [votingActive, setVotingActive] = useState(false);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [showBountyModal, setShowBountyModal] = useState(false);
+  const [bountyAmount, setBountyAmount] = useState('');
 
-  const story = storyChains.find((s) => s.id === id);
+  // Try to find story in local store first, then fetch from blockchain
+  const localStory = storyChains.find((s) => s.id === id);
+
+  // Fetch story data from blockchain
+  useEffect(() => {
+    const loadStoryData = async () => {
+      if (!id) return;
+
+      setIsLoading(true);
+
+      try {
+        // Use local story if available, otherwise fetch from blockchain
+        let storyData = localStory;
+
+        if (!storyData) {
+          const blockchainStory = await fetchStoryFromBlockchain(
+            parseInt(id as string)
+          );
+          console.log('🔍 Blockchain story:', blockchainStory);
+          storyData = blockchainStory || undefined;
+        }
+
+        if (storyData) {
+          setStory(storyData);
+
+          // Fetch current round data (use round 1 as default)
+          const currentRoundNum = 1; // Default to round 1
+          const roundData = await fetchCurrentRound(
+            parseInt(id as string),
+            currentRoundNum
+          );
+
+          if (roundData) {
+            setCurrentRound(roundData);
+
+            // Check voting status
+            const isVotingActive = await checkVotingActive(
+              parseInt(id as string),
+              currentRoundNum
+            );
+            setVotingActive(isVotingActive);
+
+            // Check if user has voted
+            if (address) {
+              const userHasVoted = await checkHasVoted(
+                parseInt(id as string),
+                currentRoundNum,
+                address
+              );
+              setHasVoted(userHasVoted);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading story data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadStoryData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]); // Only run when story ID changes, not on every render
+
+  if (isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-background">
+        <View className="flex-1 justify-center items-center">
+          <Text className="text-h2 text-text-primary text-center">
+            Loading story...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!story) {
     return (
@@ -39,6 +140,100 @@ export default function StoryDetailScreen() {
 
   const handleVote = () => {
     router.push(`/voting/${story.id}`);
+  };
+
+  const handleFundBounty = async () => {
+    if (!bountyAmount || parseFloat(bountyAmount) <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid STX amount');
+      return;
+    }
+
+    try {
+      const amountInMicroStx = parseFloat(bountyAmount) * 1000000;
+
+      const txId = await fundBountyOnChain(
+        parseInt(id as string),
+        amountInMicroStx
+      );
+
+      if (!txId) {
+        Alert.alert('Failed', 'Could not fund bounty. Please try again.');
+        return;
+      }
+
+      // Update local story
+      updateStoryChain(id as string, {
+        bountyStx: (story.bountyStx || 0) + parseFloat(bountyAmount),
+      });
+
+      // Refresh from blockchain
+      await refreshStory(parseInt(id as string));
+
+      setShowBountyModal(false);
+      setBountyAmount('');
+      Alert.alert('Success!', `Added ${bountyAmount} STX to bounty pool`);
+    } catch (error: any) {
+      console.error('Bounty funding error:', error);
+      Alert.alert('Error', error.message || 'Failed to fund bounty');
+    }
+  };
+
+  const handleSealStory = async () => {
+    if (!story || !user) return;
+
+    if (story.creatorUsername !== user.username) {
+      Alert.alert('Error', 'Only the story creator can seal the story');
+      return;
+    }
+
+    Alert.alert(
+      'Seal Story?',
+      'This will finalize the story and distribute rewards to all contributors. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Seal Story',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const txId = await sealStoryOnChain(parseInt(id as string));
+
+              if (!txId) {
+                Alert.alert(
+                  'Failed',
+                  'Could not seal story. Please try again.'
+                );
+                return;
+              }
+
+              // Update local story
+              updateStoryChain(id as string, {
+                status: 'sealed',
+              });
+
+              // Refresh from blockchain
+              await refreshStory(parseInt(id as string));
+
+              Alert.alert(
+                'Story Sealed!',
+                'Rewards have been distributed to all contributors'
+              );
+              router.back();
+            } catch (error: any) {
+              console.error('Story sealing error:', error);
+              if (error.message?.includes('ERR-INSUFFICIENT-BLOCKS')) {
+                Alert.alert(
+                  'Insufficient Blocks',
+                  `Story needs at least 5 finalized blocks to be sealed`
+                );
+              } else {
+                Alert.alert('Error', error.message || 'Failed to seal story');
+              }
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -156,7 +351,7 @@ export default function StoryDetailScreen() {
               </Text>
             </View>
           ) : (
-            story.blocks.map((block, index) => (
+            story.blocks.map((block: any, index: number) => (
               <AnimatedVoiceBlock
                 key={block.id}
                 block={block}
@@ -186,9 +381,47 @@ export default function StoryDetailScreen() {
         )}
       </ScrollView>
 
-      {/* Contribute Button */}
+      {/* Action Buttons */}
       {story.status === 'active' && (
-        <View className="p-lg border-t border-border relative z-10">
+        <View className="p-lg border-t border-border relative z-10 gap-md">
+          {votingActive && !hasVoted && (
+            <GameButton
+              title="🗳️ Vote on Submissions"
+              onPress={handleVote}
+              size="large"
+              variant="secondary"
+              className="w-full"
+            />
+          )}
+
+          {votingActive && hasVoted && (
+            <View className="bg-secondary/20 p-md rounded-lg">
+              <Text className="text-body text-text-primary text-center">
+                ✅ You've already voted in this round
+              </Text>
+            </View>
+          )}
+
+          <View className="flex-row gap-md">
+            <GameButton
+              title="💰 Fund Bounty"
+              onPress={() => setShowBountyModal(true)}
+              size="medium"
+              variant="outline"
+              className="flex-1"
+            />
+            {user?.username === story.creatorUsername && (
+              <GameButton
+                title="🔒 Seal Story"
+                onPress={handleSealStory}
+                size="medium"
+                variant="outline"
+                className="flex-1"
+                disabled={isProcessing}
+              />
+            )}
+          </View>
+
           <GameButton
             title="🎤 Contribute to Story"
             onPress={handleContribute}
@@ -196,6 +429,82 @@ export default function StoryDetailScreen() {
             variant="accent"
             className="w-full"
           />
+        </View>
+      )}
+
+      {/* Bounty Modal */}
+      <Modal
+        visible={showBountyModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowBountyModal(false)}
+      >
+        <View className="flex-1 justify-center items-center bg-black/80 px-lg">
+          <View className="bg-card rounded-2xl p-xl w-full max-w-md border-2 border-accent">
+            <Text className="text-h2 text-text-primary mb-md text-center">
+              💰 Fund Bounty
+            </Text>
+
+            <Text className="text-body text-text-secondary mb-lg text-center">
+              Add STX to the bounty pool to reward contributors
+            </Text>
+
+            {story.bountyStx && story.bountyStx > 0 && (
+              <View className="bg-secondary/20 p-md rounded-lg mb-lg">
+                <Text className="text-caption text-text-secondary text-center">
+                  Current Bounty Pool
+                </Text>
+                <Text className="text-h3 text-accent text-center">
+                  {story.bountyStx} STX
+                </Text>
+              </View>
+            )}
+
+            <View className="mb-lg">
+              <Text className="text-body text-text-primary font-semibold mb-sm">
+                Amount (STX)
+              </Text>
+              <TextInput
+                className="bg-background rounded-md px-md py-md text-text-primary text-base border border-border"
+                placeholder="Enter amount..."
+                placeholderTextColor="#D4A5B8"
+                value={bountyAmount}
+                onChangeText={setBountyAmount}
+                keyboardType="decimal-pad"
+              />
+            </View>
+
+            <View className="flex-row gap-md">
+              <GameButton
+                title="Cancel"
+                onPress={() => {
+                  setShowBountyModal(false);
+                  setBountyAmount('');
+                }}
+                variant="outline"
+                size="medium"
+                className="flex-1"
+              />
+              <GameButton
+                title={isProcessing ? 'Processing...' : 'Fund Bounty'}
+                onPress={handleFundBounty}
+                disabled={!bountyAmount || isProcessing}
+                loading={isProcessing}
+                variant="accent"
+                size="medium"
+                className="flex-1"
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {story.status === 'sealed' && (
+        <View className="p-lg border-t border-border relative z-10">
+          <View className="bg-secondary/20 p-md rounded-lg">
+            <Text className="text-body text-text-primary text-center">
+              🔒 This story has been sealed and finalized
+            </Text>
+          </View>
         </View>
       )}
     </SafeAreaView>

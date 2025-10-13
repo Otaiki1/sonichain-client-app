@@ -15,6 +15,50 @@ import {
 } from '@stacks/transactions';
 import { makeSTXTokenTransfer } from '@stacks/transactions';
 import { CONTRACT_CONFIG } from './contract-config';
+import { withRateLimit } from '../utils/rateLimiter';
+
+/**
+ * Safely serialize function arguments for rate limiting cache keys
+ * Handles BigInt values that can't be JSON.stringify'd
+ */
+function serializeArgsForCache(functionArgs: ClarityValue[]): string {
+  try {
+    return JSON.stringify(functionArgs, (key, value) => {
+      if (typeof value === 'bigint') {
+        return value.toString();
+      }
+      return value;
+    });
+  } catch (error) {
+    // Fallback to a simple string representation
+    return functionArgs
+      .map((arg) => {
+        try {
+          return JSON.stringify(arg, (key, value) => {
+            if (typeof value === 'bigint') {
+              return value.toString();
+            }
+            return value;
+          });
+        } catch {
+          return String(arg);
+        }
+      })
+      .join('-');
+  }
+}
+
+/**
+ * Create a promise that times out after specified milliseconds
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out')), timeoutMs)
+    ),
+  ]);
+}
 
 /**
  * Base function for read-only contract calls
@@ -25,22 +69,51 @@ export async function callReadOnly<T = any>(
   functionArgs: ClarityValue[] = [],
   senderAddress?: string
 ): Promise<T> {
-  try {
-    const response = await fetchCallReadOnlyFunction({
-      contractAddress: CONTRACT_CONFIG.CONTRACT_ADDRESS,
-      contractName: CONTRACT_CONFIG.CONTRACT_NAME,
-      functionName,
-      functionArgs,
-      senderAddress: senderAddress || CONTRACT_CONFIG.CONTRACT_ADDRESS,
-      network: CONTRACT_CONFIG.NETWORK,
-    });
-
-    // Convert Clarity value to JavaScript value
-    return cvToValue(response) as T;
-  } catch (error) {
-    console.error(`Error calling ${functionName}:`, error);
-    throw error;
+  // Production check: Blockchain must be enabled
+  if (!CONTRACT_CONFIG.BLOCKCHAIN_ENABLED) {
+    const errorMsg =
+      `🚨 PRODUCTION ERROR: Blockchain is disabled but required for app to function.\n` +
+      `Set BLOCKCHAIN_ENABLED to true in lib/contract-config.ts`;
+    console.error(errorMsg);
+    throw new Error(
+      'Blockchain integration is disabled - app cannot function in production mode'
+    );
   }
+
+  // Wrap with rate limiting
+  return withRateLimit(
+    `${functionName}-${serializeArgsForCache(functionArgs)}`,
+    async () => {
+      try {
+        // Add 10 second timeout to prevent hanging requests
+        const response = await withTimeout(
+          fetchCallReadOnlyFunction({
+            contractAddress: CONTRACT_CONFIG.CONTRACT_ADDRESS,
+            contractName: CONTRACT_CONFIG.CONTRACT_NAME,
+            functionName,
+            functionArgs,
+            senderAddress: senderAddress || CONTRACT_CONFIG.CONTRACT_ADDRESS,
+            network: CONTRACT_CONFIG.NETWORK,
+          }),
+          10000 // 10 seconds timeout
+        );
+
+        // Convert Clarity value to JavaScript value
+        return cvToValue(response) as T;
+      } catch (error: any) {
+        console.error(`Error calling ${functionName}:`, error);
+
+        // Provide more helpful error messages
+        if (error.message === 'Request timed out') {
+          throw new Error(
+            `Blockchain request timed out. The network might be slow or the contract might not exist at ${CONTRACT_CONFIG.CONTRACT_ADDRESS}.${CONTRACT_CONFIG.CONTRACT_NAME}`
+          );
+        }
+
+        throw error;
+      }
+    }
+  );
 }
 
 /**
@@ -51,6 +124,15 @@ export function prepareContractCall(
   functionName: string,
   functionArgs: ClarityValue[] = []
 ) {
+  // Production: Blockchain must be enabled
+  if (!CONTRACT_CONFIG.BLOCKCHAIN_ENABLED) {
+    const errorMsg = `🚨 PRODUCTION ERROR: Attempting contract call "${functionName}" but blockchain is disabled`;
+    console.error(errorMsg);
+    throw new Error(
+      'Blockchain integration is disabled - cannot execute contract calls'
+    );
+  }
+
   return {
     contractAddress: CONTRACT_CONFIG.CONTRACT_ADDRESS,
     contractName: CONTRACT_CONFIG.CONTRACT_NAME,
@@ -119,6 +201,36 @@ export async function registerUser(username: string) {
  */
 export async function getUser(userAddress: string) {
   return await callReadOnly('get-user', [principalCV(userAddress)]);
+}
+
+// ===========================================
+// COUNTER FUNCTIONS (NEW - PRODUCTION)
+// ===========================================
+
+/**
+ * Get the current story counter
+ * Use this to determine how many stories have been created on the blockchain
+ * Stories are numbered from 1 to story-counter
+ * @returns The current story counter value
+ */
+export async function getStoryCounter(): Promise<number> {
+  return await callReadOnly<number>('get-story-counter', []);
+}
+
+/**
+ * Get the current submission counter
+ * @returns The current submission counter value
+ */
+export async function getSubmissionCounter(): Promise<number> {
+  return await callReadOnly<number>('get-submission-counter', []);
+}
+
+/**
+ * Get the current round counter
+ * @returns The current round counter value
+ */
+export async function getRoundCounter(): Promise<number> {
+  return await callReadOnly<number>('get-round-counter', []);
 }
 
 // ===========================================
@@ -398,7 +510,7 @@ export async function getAllRoundSubmissions(
 /**
  * Get complete story chain (all finalized blocks)
  * @param storyId - Story ID
- * @returns Array of finalized blocks
+ * @returns Array of finalized blocks with full submission data
  */
 export async function getCompleteStoryChain(storyId: number) {
   const storyData = await getStory(storyId);
@@ -410,12 +522,93 @@ export async function getCompleteStoryChain(storyId: number) {
   for (let i = 0; i < totalBlocks; i++) {
     const blockData = await getStoryChainBlock(storyId, i);
     if (blockData) {
-      chain.push({
-        blockIndex: i,
-        ...blockData,
-      });
+      // blockData contains: { submission-id, contributor, finalized-at }
+      const submissionId = blockData['submission-id'];
+
+      // Fetch full submission details
+      const fullSubmission = await getSubmission(submissionId);
+
+      if (fullSubmission) {
+        chain.push({
+          blockIndex: i,
+          'submission-id': submissionId, // Include the ID explicitly
+          id: submissionId, // Also as 'id' for easier access
+          ...fullSubmission,
+          'finalized-at': blockData['finalized-at'], // Keep finalized timestamp
+        });
+      }
     }
   }
 
   return chain;
+}
+
+/**
+ * PRODUCTION: Fetch all stories from blockchain using story-counter
+ * This is the recommended way to get all stories in production
+ *
+ * @returns Array of all story IDs that exist on the blockchain
+ */
+export async function getAllStoryIds(): Promise<number[]> {
+  try {
+    console.log('📊 Fetching story counter from blockchain...');
+    const counter = await getStoryCounter();
+
+    console.log(`✅ Story counter: ${counter}`);
+
+    if (!counter || counter === 0) {
+      console.log('ℹ️ No stories exist on blockchain yet');
+      return [];
+    }
+
+    // Story IDs are numbered from 1 to counter
+    const storyIds: number[] = [];
+    for (let i = 1; i <= counter; i++) {
+      storyIds.push(i);
+    }
+
+    console.log(
+      `📚 Found ${storyIds.length} story IDs on blockchain`,
+      storyIds
+    );
+    return storyIds;
+  } catch (error) {
+    console.error('❌ Error fetching story counter:', error);
+    return [];
+  }
+}
+
+/**
+ * PRODUCTION: Fetch all stories with their data from blockchain
+ * Uses story-counter to efficiently fetch all stories
+ *
+ * @returns Array of story data for all existing stories
+ */
+export async function getAllStoriesFromBlockchain() {
+  try {
+    const storyIds = await getAllStoryIds();
+
+    if (storyIds.length === 0) {
+      return [];
+    }
+
+    console.log(`🔄 Fetching ${storyIds.length} stories from blockchain...`);
+
+    const stories = [];
+    for (const storyId of storyIds) {
+      const storyData = await getStory(storyId);
+      if (storyData) {
+        stories.push({
+          id: storyId,
+          ...storyData,
+        });
+      }
+    }
+
+    console.log(`✅ Successfully fetched ${stories.length} stories`);
+    return stories;
+  } catch (error) {
+    console.error('❌ Error fetching all stories:', error);
+    return [];
+  }
 }

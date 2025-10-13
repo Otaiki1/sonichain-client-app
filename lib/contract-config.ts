@@ -5,10 +5,14 @@ import { STACKS_TESTNET, STACKS_MAINNET } from '@stacks/network';
  * Update these values with your deployed contract details
  */
 export const CONTRACT_CONFIG = {
-  // Contract address (deployed testnet address)
-  CONTRACT_ADDRESS: 'ST1VQMZKSFRW25H34XQS2KVDQ3FQEBFPWC2XM0ZYC',
+  // 🚀 PRODUCTION MODE - Blockchain enabled
+  // All data comes from blockchain, no mock/stale data
+  BLOCKCHAIN_ENABLED: true, // ✅ PRODUCTION: Blockchain enabled
+  // Contract address (CRITICAL: Update with your deployed contract address!)
+  // This must match your deployed Sonichain contract on Stacks testnet/mainnet
+  CONTRACT_ADDRESS: 'STZT44143V15WYBG72SWJJSQ7XTVXKTNMAKAZ9W',
 
-  // Contract name
+  // Contract name (must match deployed contract)
   CONTRACT_NAME: 'Sonichain',
 
   // Network configuration (switch to STACKS_MAINNET for production)
@@ -25,7 +29,66 @@ export const CONTRACT_CONFIG = {
   MIN_BLOCKS_TO_SEAL: 5,
   MAX_BLOCKS_PER_STORY: 50,
   PLATFORM_FEE_BPS: 250, // 2.5% platform fee
+
+  // NFT Contract Configuration
+  NFT_CONTRACT_ADDRESS: 'STZT44143V15WYBG72SWJJSQ7XTVXKTNMAKAZ9W',
+  NFT_CONTRACT_NAME: 'Soni_NFT',
+  NFT_TRAIT_CONTRACT: 'STZT44143V15WYBG72SWJJSQ7XTVXKTNMAKAZ9W.Soni_NFT_Trait',
 };
+
+/**
+ * Error Code Mappings (from Clarity contract)
+ */
+export const CONTRACT_ERRORS = {
+  ERR_NOT_FOUND: 'u100', // requested entity does not exist
+  ERR_UNAUTHORIZED: 'u101', // caller is not allowed to perform the operation
+  ERR_STORY_SEALED: 'u102', // story is sealed or action would seal-bypass
+  ERR_ALREADY_VOTED: 'u103', // voter already voted in the given round
+  ERR_NO_SUBMISSIONS: 'u104', // no submissions available to select a winner
+  ERR_INSUFFICIENT_BLOCKS: 'u105', // not enough finalized blocks to seal
+  ERR_INVALID_AMOUNT: 'u106', // invalid amount (e.g., zero) for bounty funding
+  ERR_TRANSFER_FAILED: 'u107', // token/STX transfer failure
+  ERR_VOTING_CLOSED: 'u108', // voting window has closed or not active
+  ERR_ALREADY_FINALIZED: 'u109', // round already finalized
+  ERR_VOTING_NOT_ENDED: 'u110', // cannot finalize before round end
+  ERR_ALREADY_SUBMITTED: 'u111', // user already submitted in this round
+  ERR_USERNAME_EXISTS: 'u112', // username already taken
+  ERR_USER_ALREADY_REGISTERED: 'u113', // user already registered
+} as const;
+
+/**
+ * Contract Function Names
+ */
+export const CONTRACT_FUNCTIONS = {
+  // Read-only functions
+  GET_STORY: 'get-story',
+  GET_ROUND: 'get-round',
+  GET_SUBMISSION: 'get-submission',
+  GET_STORY_CHAIN_BLOCK: 'get-story-chain-block',
+  HAS_VOTED: 'has-voted',
+  GET_USER_VOTE: 'get-user-vote',
+  GET_CONTRIBUTOR_STATS: 'get-contributor-stats',
+  GET_ROUND_SUBMISSION_COUNT: 'get-round-submission-count',
+  GET_ROUND_SUBMISSION_AT: 'get-round-submission-at',
+  IS_VOTING_ACTIVE: 'is-voting-active',
+  CAN_FINALIZE_ROUND: 'can-finalize-round',
+  GET_USER: 'get-user',
+  GET_WINNING_SUBMISSION: 'get-winning-submission',
+
+  // Counter functions (NEW - PRODUCTION)
+  GET_STORY_COUNTER: 'get-story-counter',
+  GET_SUBMISSION_COUNTER: 'get-submission-counter',
+  GET_ROUND_COUNTER: 'get-round-counter',
+
+  // Public functions
+  REGISTER_USER: 'register-user',
+  CREATE_STORY: 'create-story',
+  SUBMIT_BLOCK: 'submit-block',
+  VOTE_BLOCK: 'vote-block',
+  FINALIZE_ROUND: 'finalize-round',
+  FUND_BOUNTY: 'fund-bounty',
+  SEAL_STORY: 'seal-story',
+} as const;
 
 /**
  * App Details for Stacks Connect

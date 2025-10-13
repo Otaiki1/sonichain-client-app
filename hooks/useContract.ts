@@ -197,17 +197,20 @@ export function useContract() {
   /**
    * Create a new story on the blockchain
    * @param prompt - Story prompt (max 500 characters)
+   * @returns The transaction ID (we'll use this as the story ID for now)
    */
-  async function createStoryOnChain(prompt: string) {
+  async function createStoryOnChain(prompt: string): Promise<string | null> {
     const txOptions = await ContractUtils.createStory(prompt);
 
-    return await callContract(
+    const txId = await callContract(
       txOptions.functionName,
       txOptions.functionArgs,
       (txId) => {
         console.log('Story created on chain:', txId);
       }
     );
+
+    return txId;
   }
 
   /**

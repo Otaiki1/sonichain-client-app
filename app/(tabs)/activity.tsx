@@ -14,11 +14,16 @@ import { GameButton } from '../../components/GameButton';
 import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
 import { SoundEffects } from '../../utils/soundEffects';
+import { useContract } from '../../hooks/useContract';
+import { useStories } from '../../hooks/useStories';
 
 export default function ActivityScreen() {
   const router = useRouter();
   const { user, storyChains, updateStoryChain, updateUser, addXP } =
     useAppStore();
+  const { finalizeRoundOnChain, checkCanFinalize, isProcessing, address } =
+    useContract();
+  const { refreshStory } = useStories();
   const [processingStoryId, setProcessingStoryId] = useState<string | null>(
     null
   );
@@ -47,58 +52,147 @@ export default function ActivityScreen() {
   // Get user's NFTs
   const myNFTs = user.nfts || [];
 
-  const handleFinalizeStory = (storyId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    setProcessingStoryId(storyId);
-
+  const handleFinalizeStory = async (storyId: string) => {
     const story = storyChains.find((s) => s.id === storyId);
     if (!story) return;
 
-    // Simulate finalization
-    setTimeout(() => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      SoundEffects.playSuccess();
-      // Update story status
-      updateStoryChain(storyId, {
-        status: 'finalized',
-        nftMinted: true,
-        nftId: `NFT-${Date.now()}`,
-      });
+    // Show confirmation dialog
+    Alert.alert(
+      'Finalize Round?',
+      'This will select the winning submission and start the next round. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Finalize',
+          onPress: async () => {
+            try {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              setProcessingStoryId(storyId);
 
-      // Create NFT for each contributor
-      const contributors = Array.from(
-        new Set(story.blocks.map((block) => block.username))
-      );
+              // Check if user is the creator
+              if (story.creatorUsername !== user.username) {
+                Alert.alert(
+                  'Error',
+                  'Only the story creator can finalize rounds.'
+                );
+                setProcessingStoryId(null);
+                return;
+              }
 
-      const newNFTs = contributors.map((contributor) => ({
-        id: `nft-${storyId}-${contributor}-${Date.now()}`,
-        storyId: story.id,
-        storyTitle: story.title,
-        coverArt: story.coverArt,
-        mintedTo: contributor,
-        mintedBy: user.username,
-        mintedAt: new Date().toISOString(),
-      }));
+              // Check if round can be finalized
+              const canFinalize = await checkCanFinalize(
+                parseInt(storyId),
+                1 // Current round
+              );
 
-      // Add NFTs to current user if they're a contributor
-      const userNFT = newNFTs.find((nft) => nft.mintedTo === user.username);
-      if (userNFT) {
-        updateUser({ nfts: [...(user.nfts || []), userNFT] });
-      }
+              if (!canFinalize) {
+                Alert.alert(
+                  'Cannot Finalize',
+                  'This round is not ready to be finalized. Make sure the voting window has ended.'
+                );
+                setProcessingStoryId(null);
+                return;
+              }
 
-      // Award XP for finalizing
-      addXP(100);
+              // Finalize round on blockchain
+              console.log('🎯 Finalizing round for story:', storyId);
 
-      setProcessingStoryId(null);
-      Alert.alert(
-        'Story Finalized! 🎉',
-        `${
-          story.bountyStx
-            ? `${story.bountyStx} STX distributed among ${contributors.length} contributors. `
-            : ''
-        }NFTs minted for all contributors!`
-      );
-    }, 2000);
+              const txId = await finalizeRoundOnChain(parseInt(storyId), 1);
+
+              if (!txId) {
+                Alert.alert(
+                  'Finalization Failed',
+                  'Could not finalize the round. Please try again.'
+                );
+                setProcessingStoryId(null);
+                return;
+              }
+
+              console.log('✅ Round finalized, txId:', txId);
+
+              // Play success feedback
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success
+              );
+              SoundEffects.playSuccess();
+
+              // Update local story status
+              updateStoryChain(storyId, {
+                status: 'finalized',
+                nftMinted: true,
+                nftId: `NFT-${Date.now()}`,
+              });
+
+              // Create NFTs for contributors (this would be handled by the contract)
+              const contributors = Array.from(
+                new Set(story.blocks.map((block) => block.username))
+              );
+
+              const newNFTs = contributors.map((contributor) => ({
+                id: `nft-${storyId}-${contributor}-${Date.now()}`,
+                storyId: story.id,
+                storyTitle: story.title,
+                coverArt: story.coverArt,
+                mintedTo: contributor,
+                mintedBy: user.username,
+                mintedAt: new Date().toISOString(),
+              }));
+
+              // Add NFT to current user if they're a contributor
+              const userNFT = newNFTs.find(
+                (nft) => nft.mintedTo === user.username
+              );
+              if (userNFT) {
+                updateUser({ nfts: [...(user.nfts || []), userNFT] });
+              }
+
+              // Award XP for finalizing
+              addXP(100);
+
+              // Refresh story data from blockchain
+              await refreshStory(parseInt(storyId));
+
+              setProcessingStoryId(null);
+
+              Alert.alert(
+                'Round Finalized! 🎉',
+                `${
+                  story.bountyStx
+                    ? `${story.bountyStx} STX will be distributed among ${contributors.length} contributors. `
+                    : ''
+                }Winner selected and NFT will be minted!`
+              );
+            } catch (error: any) {
+              console.error('❌ Finalization error:', error);
+              setProcessingStoryId(null);
+
+              // Handle specific errors
+              if (error.message?.includes('ERR-VOTING-NOT-ENDED')) {
+                Alert.alert(
+                  'Cannot Finalize',
+                  'The voting period has not ended yet.'
+                );
+              } else if (error.message?.includes('ERR-ALREADY-FINALIZED')) {
+                Alert.alert(
+                  'Already Finalized',
+                  'This round has already been finalized.'
+                );
+              } else if (error.message?.includes('ERR-NO-SUBMISSIONS')) {
+                Alert.alert(
+                  'No Submissions',
+                  'Cannot finalize a round with no submissions.'
+                );
+              } else {
+                Alert.alert(
+                  'Finalization Failed',
+                  error.message || 'An unexpected error occurred.'
+                );
+              }
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (

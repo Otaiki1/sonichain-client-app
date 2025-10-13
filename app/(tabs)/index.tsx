@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,16 +10,30 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Plus, Search, X } from 'lucide-react-native';
+import {
+  Plus,
+  Search,
+  X,
+  Copy,
+  ExternalLink,
+  RotateCw,
+} from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { AnimatedStoryCard } from '../../components/AnimatedStoryCard';
 import { Button } from '../../components/Button';
 import { GameButton } from '../../components/GameButton';
 import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
+import { usePinata } from '../../hooks/usePinata';
+import { useContract } from '../../hooks/useContract';
+import { useStories } from '../../hooks/useStories';
+import { useRealTimeUpdates } from '../../hooks/useRealTimeUpdates';
+import { StoryChain } from '@/types';
 
 const CATEGORIES = [
   'Mystery',
@@ -56,7 +70,15 @@ const COVER_EMOJIS = [
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { storyChains, addStoryChain, user } = useAppStore();
+  const { addStoryChain, user, updateUser } = useAppStore();
+  const { uploadMetadata, isUploading, getPinataUrl } = usePinata();
+  const { createStoryOnChain, isProcessing } = useContract();
+  const {
+    refreshAllStories,
+    isLoading: isRefreshing,
+    fetchAllStories,
+  } = useStories();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newStoryTitle, setNewStoryTitle] = useState('');
@@ -66,50 +88,152 @@ export default function HomeScreen() {
   const [maxBlocks, setMaxBlocks] = useState('10');
   const [bountyStx, setBountyStx] = useState('');
   const [votingWindowHours, setVotingWindowHours] = useState('24');
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [resultData, setResultData] = useState<{
+    success: boolean;
+    title: string;
+    message: string;
+    txId?: string;
+  } | null>(null);
+  const [appStories, setAppStories] = useState<StoryChain[]>([]);
+  // Enable real-time updates for stories (refresh every 5 minutes to avoid rate limits)
+  useRealTimeUpdates({
+    enabled: false, // Disabled to prevent rate limiting - use manual refresh instead
+    interval: 5 * 60 * 1000, // 5 minutes
+    onUpdate: async () => {
+      await refreshAllStories();
+    },
+  });
 
-  const filteredStories = storyChains.filter(
-    (story) =>
-      story.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      story.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      story.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filterStories = (stories: StoryChain[]) => {
+    return stories.filter(
+      (story) =>
+        story.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        story.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        story.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  };
 
   const handleCreateStory = () => {
     setShowCreateModal(true);
   };
 
-  const handleSubmitNewStory = () => {
+  const handleSubmitNewStory = async () => {
     if (!newStoryTitle.trim() || !user) {
+      Alert.alert('Error', 'Please enter a story title');
       return;
     }
 
-    const newStory = {
-      id: Date.now().toString(),
-      title: newStoryTitle.trim(),
-      description: newStoryDescription.trim() || undefined,
-      coverArt: selectedEmoji,
-      blocks: [],
-      maxBlocks: parseInt(maxBlocks) || 10,
-      status: 'active' as const,
-      category: selectedCategory,
-      totalDuration: 0,
-      bountyStx: bountyStx ? parseFloat(bountyStx) : undefined,
-      votingWindowHours: parseInt(votingWindowHours) || 24,
-      creatorUsername: user.username,
-      nftMinted: false,
-    };
+    if (isProcessing || isUploading) {
+      return; // Prevent double submission
+    }
 
-    addStoryChain(newStory);
+    try {
+      // Create story metadata for IPFS
+      const storyMetadata = {
+        storyId: Date.now().toString(), // Temporary ID for metadata
+        title: newStoryTitle.trim(),
+        description:
+          newStoryDescription.trim() || 'A collaborative voice story',
+        category: selectedCategory,
+        coverArt: selectedEmoji,
+        maxBlocks: parseInt(maxBlocks) || 10,
+        bountyStx: bountyStx ? parseFloat(bountyStx) : 0,
+        votingWindowHours: parseInt(votingWindowHours) || 24,
+        creatorUsername: user.username,
+        creatorAddress: user.walletAddress,
+        createdAt: new Date().toISOString(),
+        type: 'story-metadata',
+      };
 
-    // Reset form
-    setNewStoryTitle('');
-    setNewStoryDescription('');
-    setSelectedCategory('Mystery');
-    setSelectedEmoji('✨');
-    setMaxBlocks('10');
-    setBountyStx('');
-    setVotingWindowHours('24');
-    setShowCreateModal(false);
+      // Upload metadata to IPFS first
+      const ipfsResult = await uploadMetadata(
+        storyMetadata,
+        `story-metadata-${Date.now()}.json`
+      );
+
+      if (!ipfsResult) {
+        Alert.alert(
+          'IPFS Upload Failed',
+          'Could not upload story metadata to IPFS. Please try again.'
+        );
+        return;
+      }
+
+      // Create story on blockchain using IPFS hash as prompt
+      const blockchainStoryId = await createStoryOnChain(ipfsResult.cid);
+
+      if (!blockchainStoryId) {
+        Alert.alert(
+          'Blockchain Creation Failed',
+          'Could not create story on blockchain. Please try again.'
+        );
+        return;
+      }
+
+      // Create local story data with transaction ID as story ID
+      const newStory = {
+        id: blockchainStoryId, // Use transaction ID as story ID
+        title: newStoryTitle.trim(),
+        description: newStoryDescription.trim() || undefined,
+        coverArt: selectedEmoji,
+        blocks: [],
+        maxBlocks: parseInt(maxBlocks) || 10,
+        status: 'active' as const,
+        category: selectedCategory,
+        totalDuration: 0,
+        bountyStx: bountyStx ? parseFloat(bountyStx) : undefined,
+        votingWindowHours: parseInt(votingWindowHours) || 24,
+        creatorUsername: user.username,
+        nftMinted: false,
+        metadataCid: ipfsResult.cid, // Store IPFS hash
+        metadataUrl: ipfsResult.url, // Store gateway URL
+      };
+
+      // Add to local store for immediate display
+      addStoryChain(newStory);
+
+      // Update user stats
+      if (user) {
+        updateUser({
+          xp: user.xp + 50, // Award XP for creating story
+        });
+      }
+
+      // Reset form
+      setNewStoryTitle('');
+      setNewStoryDescription('');
+      setSelectedCategory('Mystery');
+      setSelectedEmoji('✨');
+      setMaxBlocks('10');
+      setBountyStx('');
+      setVotingWindowHours('24');
+
+      // Close create modal
+      setShowCreateModal(false);
+
+      // Provide haptic feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Show success popup
+      setResultData({
+        success: true,
+        title: '🎉 Story Created!',
+        message: `Your story "${newStory.title}" has been created on the blockchain and IPFS!`,
+        txId: blockchainStoryId,
+      });
+      setShowResultModal(true);
+    } catch (error: any) {
+      console.error('Story creation error:', error);
+
+      // Show error popup
+      setResultData({
+        success: false,
+        title: '❌ Creation Failed',
+        message: error.message || 'Failed to create story. Please try again.',
+      });
+      setShowResultModal(true);
+    }
   };
 
   const handleCloseModal = () => {
@@ -122,7 +246,11 @@ export default function HomeScreen() {
     setBountyStx('');
     setVotingWindowHours('24');
   };
-
+  useEffect(() => {
+    fetchAllStories().then((stories) => {
+      setAppStories(stories);
+    });
+  }, []);
   return (
     <SafeAreaView className="flex-1 bg-background">
       <BackgroundPulse />
@@ -150,30 +278,62 @@ export default function HomeScreen() {
 
       <View className="flex-row justify-between items-center px-lg mb-md">
         <Text className="text-h3 text-text-primary">Active Stories</Text>
-        <TouchableOpacity
-          className="flex-row items-center bg-secondary px-md py-sm rounded-md gap-xs"
-          onPress={handleCreateStory}
-        >
-          <Plus size={20} color="#FFFFFF" />
-          <Text className="text-body text-text-primary font-semibold">
-            New Story
-          </Text>
-        </TouchableOpacity>
+        <View className="flex-row items-center">
+          <TouchableOpacity
+            className="items-center justify-center w-10 h-10 rounded-md mr-sm"
+            onPress={refreshAllStories}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text className="text-xl">🔃</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="flex-row items-center bg-secondary px-md py-sm rounded-md"
+            onPress={handleCreateStory}
+          >
+            <Plus size={20} color="#FFFFFF" />
+            <Text className="text-body text-text-primary font-semibold ml-xs">
+              New Story
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <FlatList
-        data={filteredStories}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <AnimatedStoryCard
-            story={item}
-            onPress={() => router.push(`/story/${item.id}`)}
-            index={index}
-          />
-        )}
-        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 32 }}
-        showsVerticalScrollIndicator={false}
-      />
+      {filterStories(appStories).length === 0 ? (
+        <View className="flex-1 items-center justify-center px-lg">
+          <Text className="text-6xl mb-lg">📚</Text>
+          <Text className="text-h2 text-text-primary mb-sm text-center">
+            No Stories Yet
+          </Text>
+          <Text className="text-body text-text-secondary text-center mb-lg px-md">
+            {searchQuery
+              ? `No stories match "${searchQuery}"`
+              : 'Create the first collaborative voice story on the blockchain!'}
+          </Text>
+          {!searchQuery && (
+            <GameButton onPress={handleCreateStory} className="mt-md">
+              Create First Story
+            </GameButton>
+          )}
+        </View>
+      ) : (
+        <FlatList
+          data={filterStories(appStories)}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, index }) => (
+            <AnimatedStoryCard
+              story={item}
+              onPress={() => router.push(`/story/${item.id}`)}
+              index={index}
+            />
+          )}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 32 }}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       {/* Create Story Modal */}
       <Modal
@@ -371,9 +531,16 @@ export default function HomeScreen() {
             {/* Footer Buttons */}
             <View className="p-lg border-t border-border gap-md">
               <GameButton
-                title="Create Story"
+                title={
+                  isUploading
+                    ? 'Uploading to IPFS...'
+                    : isProcessing
+                    ? 'Creating on Blockchain...'
+                    : 'Create Story'
+                }
                 onPress={handleSubmitNewStory}
-                disabled={!newStoryTitle.trim()}
+                disabled={!newStoryTitle.trim() || isUploading || isProcessing}
+                loading={isUploading || isProcessing}
                 size="large"
                 variant="accent"
                 className="w-full"
@@ -388,6 +555,102 @@ export default function HomeScreen() {
               />
             </View>
           </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* Game-Style Result Popup Modal */}
+      <Modal
+        visible={showResultModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowResultModal(false)}
+      >
+        <View className="flex-1 justify-center items-center bg-black/90 px-lg">
+          <View
+            className={`rounded-3xl p-xl w-full max-w-md border-4 ${
+              resultData?.success
+                ? 'bg-gradient-to-br from-accent/20 to-secondary/20 border-accent'
+                : 'bg-gradient-to-br from-red-500/20 to-orange-500/20 border-red-500'
+            }`}
+            style={{
+              shadowColor: resultData?.success ? '#00FFFF' : '#FF0000',
+              shadowOffset: { width: 0, height: 0 },
+              shadowRadius: 30,
+              shadowOpacity: 0.8,
+            }}
+          >
+            {/* Animated Icon */}
+            <View className="items-center mb-lg">
+              <View
+                className={`w-32 h-32 rounded-full items-center justify-center mb-md ${
+                  resultData?.success
+                    ? 'bg-accent/30 border-4 border-accent'
+                    : 'bg-red-500/30 border-4 border-red-500'
+                }`}
+                style={{
+                  shadowColor: resultData?.success ? '#00FFFF' : '#FF0000',
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowRadius: 20,
+                  shadowOpacity: 1,
+                }}
+              >
+                <Text className="text-7xl">
+                  {resultData?.success ? '🎉' : '💥'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Title */}
+            <Text
+              className={`text-h1 text-center mb-md font-bold ${
+                resultData?.success ? 'text-accent' : 'text-red-500'
+              }`}
+            >
+              {resultData?.title}
+            </Text>
+
+            {/* Message */}
+            <Text className="text-body text-text-primary text-center mb-lg leading-6">
+              {resultData?.message}
+            </Text>
+
+            {/* Transaction ID (for success) */}
+            {resultData?.success && resultData?.txId && (
+              <View className="bg-background/50 rounded-xl p-md mb-lg border border-accent/30">
+                <Text className="text-caption text-text-secondary text-center mb-xs">
+                  Transaction ID
+                </Text>
+                <Text
+                  className="text-small text-accent font-mono text-center"
+                  numberOfLines={1}
+                >
+                  {resultData.txId.substring(0, 8)}...
+                  {resultData.txId.substring(resultData.txId.length - 6)}
+                </Text>
+              </View>
+            )}
+
+            {/* XP Earned (for success) */}
+            {resultData?.success && (
+              <View className="bg-secondary/20 rounded-xl p-md mb-lg border border-secondary/30">
+                <Text className="text-h3 text-secondary text-center font-bold">
+                  +50 XP
+                </Text>
+                <Text className="text-caption text-text-secondary text-center">
+                  Experience Points Earned!
+                </Text>
+              </View>
+            )}
+
+            {/* Action Button */}
+            <GameButton
+              title={resultData?.success ? 'Awesome!' : 'Try Again'}
+              onPress={() => setShowResultModal(false)}
+              size="large"
+              variant={resultData?.success ? 'accent' : 'secondary'}
+              className="w-full"
+            />
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
