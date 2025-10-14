@@ -321,7 +321,7 @@ export default function HomeScreen() {
         </View>
       ) : (
         <FlatList
-          data={filterStories(appStories)}
+          data={appStories}
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
             <AnimatedStoryCard

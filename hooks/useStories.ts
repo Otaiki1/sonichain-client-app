@@ -7,6 +7,32 @@ import { usePinata } from './usePinata';
 import * as ContractUtils from '@/lib/contract-utils';
 
 /**
+ * Helper function to extract data from nested blockchain response
+ * Handles the structure: {id, type, value: {field: {type, value}}}
+ *
+ * This is exported so it can be used in other files that fetch blockchain data
+ */
+export function extractBlockchainData(blockchainResponse: any): any {
+  if (!blockchainResponse) return null;
+
+  // Extract the outer value wrapper
+  const data = blockchainResponse.value || blockchainResponse;
+
+  // If it's not an object with nested structure, return as is
+  if (typeof data !== 'object' || !data) return data;
+
+  // Extract nested values
+  const extracted: any = {};
+  for (const key in data) {
+    const field = data[key];
+    // If field has a value property, extract it, otherwise use as is
+    extracted[key] = field?.value !== undefined ? field.value : field;
+  }
+
+  return extracted;
+}
+
+/**
  * Custom hook for fetching and managing stories from the blockchain
  * Replaces mock story data with real blockchain data
  */
@@ -32,46 +58,52 @@ export function useStories() {
     async (blockchainStory: any, storyId: number): Promise<StoryChain> => {
       // Contract returns:
       // {
-      //   prompt: string-utf8,
-      //   creator: principal,
-      //   is-sealed: bool,
-      //   created-at: uint,
-      //   total-blocks: uint,
-      //   bounty-pool: uint,
-      //   current-round: uint
+      //   id: number,
+      //   type: string,
+      //   value: {
+      //     prompt: {type: string, value: string},
+      //     creator: {type: string, value: principal},
+      //     is-sealed: {type: string, value: bool},
+      //     created-at: {type: string, value: uint},
+      //     total-blocks: {type: string, value: uint},
+      //     bounty-pool: {type: string, value: uint},
+      //     current-round: {type: string, value: uint}
+      //   }
       // }
+      console.log(
+        '🔍 Blockchain story raw:',
+        JSON.stringify(blockchainStory, null, 2)
+      );
 
-      // Extract values from nested blockchain response structure
-      const prompt =
-        blockchainStory.prompt?.value || blockchainStory.prompt || '';
-      const isSealed =
-        blockchainStory['is-sealed']?.value ??
-        blockchainStory['is-sealed'] ??
-        false;
-      const bountyPool =
-        blockchainStory['bounty-pool']?.value ??
-        blockchainStory['bounty-pool'] ??
-        0;
-      const creator = blockchainStory.creator?.value || blockchainStory.creator;
-      const createdAt =
-        blockchainStory['created-at']?.value ??
-        blockchainStory['created-at'] ??
-        0;
-      const totalBlocks =
-        blockchainStory['total-blocks']?.value ??
-        blockchainStory['total-blocks'] ??
-        0;
-      const currentRound =
-        blockchainStory['current-round']?.value ??
-        blockchainStory['current-round'] ??
-        1;
+      // Extract the nested blockchain data structure
+      const storyData = extractBlockchainData(blockchainStory);
+      console.log('🔍 Extracted story data:', storyData);
 
-      // Parse IPFS metadata from prompt using usePinata hook
-      let ipfsMetadata = null;
-      let title = `Story ${storyId}`;
-      let description = 'A collaborative voice story created on blockchain';
-      let coverArt = '🎭';
-      let category = 'Mystery';
+      // Get values with proper fallbacks
+      const prompt = storyData?.prompt || '';
+      const isSealed = storyData?.['is-sealed'] ?? false;
+      const bountyPool = Number(storyData?.['bounty-pool'] ?? 0);
+      const creator = storyData?.creator || '';
+      const createdAt = Number(storyData?.['created-at'] ?? 0);
+      const totalBlocks = Number(storyData?.['total-blocks'] ?? 0);
+      const currentRound = Number(storyData?.['current-round'] ?? 1);
+
+      console.log('🔍 Parsed values:', {
+        prompt,
+        isSealed,
+        bountyPool,
+        creator,
+        createdAt,
+        totalBlocks,
+        currentRound,
+      });
+
+      // Initialize metadata variables with blank values
+      let ipfsMetadata: any = null;
+      let title = '';
+      let description = '';
+      let coverArt = '';
+      let category = '';
 
       if (prompt) {
         // Check if prompt is an IPFS hash (Qm... or baf... format)
@@ -87,28 +119,30 @@ export function useStories() {
             ipfsMetadata = await getFromIPFS(prompt);
 
             if (ipfsMetadata) {
-              // Extract metadata from IPFS content
-              title =
-                ipfsMetadata.title || ipfsMetadata.name || `Story ${storyId}`;
+              // Extract metadata from IPFS content - use blank if not available
+              title = ipfsMetadata.title || ipfsMetadata.name || '';
               description =
-                ipfsMetadata.description || ipfsMetadata.summary || description;
-              coverArt = ipfsMetadata.coverArt || ipfsMetadata.image || '🎭';
-              category =
-                ipfsMetadata.category || ipfsMetadata.genre || 'Mystery';
+                ipfsMetadata.description || ipfsMetadata.summary || '';
+              coverArt = ipfsMetadata.coverArt || ipfsMetadata.image || '';
+              category = ipfsMetadata.category || ipfsMetadata.genre || '';
 
               console.log('✅ IPFS metadata parsed:', {
-                title,
-                description: description.substring(0, 50) + '...',
-                coverArt,
-                category,
+                title: title || '(empty)',
+                description: description
+                  ? description.substring(0, Math.min(50, description.length)) +
+                    (description.length > 50 ? '...' : '')
+                  : '(empty)',
+                coverArt: coverArt || '(empty)',
+                category: category || '(empty)',
               });
             }
           } catch (error) {
             console.warn('⚠️ Failed to parse IPFS metadata:', error);
-            // Fallback to using prompt as title if IPFS parsing fails
-            title =
-              prompt.length > 50 ? prompt.substring(0, 47) + '...' : prompt;
-            description = prompt;
+            // Leave all fields blank if IPFS parsing fails
+            title = '';
+            description = '';
+            coverArt = '';
+            category = '';
           }
         } else {
           // If prompt is not an IPFS hash, use it as title/description
@@ -123,7 +157,7 @@ export function useStories() {
         description,
         coverArt,
         blocks: [], // Will be populated by fetching story chain
-        maxBlocks: 50, // From contract constant MAX_BLOCKS_PER_STORY
+        maxBlocks: 10, // From contract constant MAX_BLOCKS_PER_STORY
         status: isSealed ? 'sealed' : 'active',
         category,
         totalDuration: 0, // Calculated from voice blocks
@@ -214,6 +248,7 @@ export function useStories() {
                 storyId
               );
               const storyChain = await fetchCompleteStory(storyId);
+              console.log('🔍 Fetched Story from blockchain:', storyChain);
               if (storyChain && Array.isArray(storyChain)) {
                 // storyChain now includes full submission data with 'id' field
                 appStory.blocks = storyChain.map((block) =>
@@ -321,7 +356,7 @@ export function useStories() {
       appStories.forEach((story) => {
         updateStoryChain(story.id, story);
       });
-      console.log('🔄 App store updated with blockchain stories');
+      console.log('🔄 App store updated with blockchain stories', appStories);
 
       return appStories;
     } catch (err: any) {

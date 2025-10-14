@@ -27,7 +27,7 @@ import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
 import { usePinata } from '../../hooks/usePinata';
 import { useContract } from '../../hooks/useContract';
-import { useStories } from '../../hooks/useStories';
+import { useStories, extractBlockchainData } from '../../hooks/useStories';
 
 export default function RecordScreen() {
   const router = useRouter();
@@ -52,8 +52,6 @@ export default function RecordScreen() {
     message: string;
     txId?: string;
   } | null>(null);
-
-  const story = storyChains.find((s) => s.id === storyId);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -162,7 +160,21 @@ export default function RecordScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!recordedUri || !user || !story) {
+    //Get Story from the blockchain using the storyId
+    const blockchainStoryRaw = await fetchStory(parseInt(storyId as string));
+    console.log('🔍 Blockchain story raw:', blockchainStoryRaw);
+
+    if (!blockchainStoryRaw) {
+      Alert.alert('Error', 'Story not found on blockchain');
+      return;
+    }
+
+    // Extract the nested blockchain data
+    const blockchainStory = extractBlockchainData(blockchainStoryRaw);
+    console.log('🔍 Blockchain story extracted:', blockchainStory);
+    if (!recordedUri || !user) {
+      console.log('recording uri', recordedUri);
+      console.log('user', user);
       Alert.alert('Error', 'Missing required data');
       return;
     }
@@ -176,7 +188,7 @@ export default function RecordScreen() {
       console.log('🔍 Validating submission conditions...');
 
       // Check if story exists and is active
-      if (story.status !== 'active') {
+      if (blockchainStory['is-sealed'] !== false) {
         Alert.alert(
           'Story Not Active',
           'This story is no longer accepting submissions.'
@@ -184,20 +196,26 @@ export default function RecordScreen() {
         return;
       }
 
-      // Check if storyId is a transaction ID (starts with 0x) or numeric ID
-      const isTransactionId = (storyId as string).startsWith('0x');
+      // Check if storyId is present
 
-      if (!isTransactionId) {
+      if (storyId) {
         // Only validate against blockchain if we have a numeric story ID
-        Alert.alert('🔍 Fetching story from blockchain...', storyId as string);
-        const blockchainStory = await fetchStory(parseInt(storyId as string));
-        Alert.alert('🔍 Blockchain story:', blockchainStory as string);
-        if (!blockchainStory) {
+        console.log('🔍 Fetching story from blockchain...', storyId as string);
+        const blockchainStoryRaw = await fetchStory(
+          parseInt(storyId as string)
+        );
+        console.log('🔍 Blockchain story raw:', blockchainStoryRaw);
+
+        if (!blockchainStoryRaw) {
           Alert.alert('Error', 'Story not found on blockchain');
           return;
         }
 
-        if (blockchainStory['is-sealed']) {
+        // Extract the nested blockchain data
+        const blockchainStory = extractBlockchainData(blockchainStoryRaw);
+        console.log('🔍 Blockchain story extracted:', blockchainStory);
+
+        if (blockchainStory?.['is-sealed']) {
           Alert.alert(
             'Story Sealed',
             'This story has been sealed and is no longer accepting submissions.'
@@ -205,20 +223,12 @@ export default function RecordScreen() {
           return;
         }
       } else {
-        console.log(
-          '⚠️ Using transaction ID as story ID - skipping blockchain validation'
-        );
+        console.log('No Story ID provided');
       }
 
       // Check if voting is active (can't submit during voting)
-      if (!isTransactionId) {
-        const currentRound = 1; // Default to round 1
-        const votingActive = await checkVotingActive(
-          parseInt(storyId as string),
-          currentRound
-        );
-
-        if (votingActive) {
+      if (storyId) {
+        if (blockchainStory['is-sealed'] !== false) {
           Alert.alert(
             'Voting In Progress',
             'Cannot submit new recordings while voting is active. Please wait for the current round to complete.'
@@ -230,21 +240,19 @@ export default function RecordScreen() {
       // Step 2: Upload audio to IPFS
       console.log('📤 Uploading audio to IPFS...');
       const metadata = {
-        storyId: story.id,
+        storyId: String(storyId),
         username: user.username,
         duration: recordingDuration,
         timestamp: new Date().toISOString(),
-        blockNumber: story.blocks.length + 1,
+        blockNumber: blockchainStory.currentRound,
         walletAddress: user.walletAddress || '',
-        storyTitle: story.title,
-        category: story.category,
       };
 
       const ipfsResult = await uploadAudioWithMetadata(
         recordedUri,
         metadata,
-        `story-${story.id}-block-${story.blocks.length + 1}.m4a`,
-        `metadata-${story.id}-block-${story.blocks.length + 1}.json`
+        `story-${storyId}-block-${blockchainStory.currentRound}.m4a`,
+        `metadata-${storyId}-block-${blockchainStory.totalBlocks}.json`
       );
 
       if (!ipfsResult) {
@@ -260,11 +268,13 @@ export default function RecordScreen() {
       // Step 3: Submit to blockchain
       console.log('⛓️ Submitting to blockchain...');
 
-      // For now, we'll use a placeholder story ID since we're using transaction IDs
-      // In a real implementation, you'd need to map transaction IDs to actual story IDs
-      const storyIdForSubmission = isTransactionId
-        ? 1
-        : parseInt(storyId as string);
+      // Parse story ID for submission
+      const storyIdForSubmission = parseInt(storyId as string);
+
+      if (isNaN(storyIdForSubmission)) {
+        Alert.alert('Error', 'Invalid story ID');
+        return;
+      }
 
       const txId = await submitBlockOnChain(
         storyIdForSubmission,
@@ -316,7 +326,7 @@ export default function RecordScreen() {
       setResultData({
         success: true,
         title: '🎤 Recording Submitted!',
-        message: `Your voice block has been added to "${story.title}" on the blockchain!`,
+        message: `Your voice block has been added to story #"${storyId}" on the blockchain!`,
         txId: txId,
       });
       setShowResultModal(true);

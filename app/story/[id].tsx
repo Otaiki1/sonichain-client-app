@@ -47,6 +47,7 @@ export default function StoryDetailScreen() {
   // Fetch story data from blockchain
   useEffect(() => {
     const loadStoryData = async () => {
+      console.log('🔍 Loading story data for ID:', id);
       if (!id) return;
 
       setIsLoading(true);
@@ -135,6 +136,7 @@ export default function StoryDetailScreen() {
   };
 
   const handleContribute = () => {
+    console.log('🔍 Contributing to story:', story.id);
     router.push(`/record/${story.id}`);
   };
 
@@ -227,7 +229,10 @@ export default function StoryDetailScreen() {
                   `Story needs at least 5 finalized blocks to be sealed`
                 );
               } else {
-                Alert.alert('Error', error.message || 'Failed to seal story');
+                Alert.alert(
+                  'Error',
+                  String(error.message) || 'Failed to seal story'
+                );
               }
             }
           },
@@ -272,7 +277,7 @@ export default function StoryDetailScreen() {
         <View className="px-lg pb-md">
           <View className="flex-row gap-md flex-wrap">
             {/* Bounty Card */}
-            {story.bountyStx && (
+            {Number(story.bountyStx) > 0 && (
               <View className="flex-1 min-w-[45%] bg-secondary/20 rounded-lg p-md border border-secondary/30">
                 <View className="flex-row items-center mb-xs">
                   <Coins size={20} color="#FF6B9D" />
@@ -281,7 +286,7 @@ export default function StoryDetailScreen() {
                   </Text>
                 </View>
                 <Text className="text-h2 text-text-primary">
-                  {story.bountyStx} STX
+                  {String(story.bountyStx)} STX
                 </Text>
                 <Text className="text-caption text-text-secondary mt-xs">
                   Split among contributors
