@@ -13,6 +13,10 @@ import { SoundEffects } from '../../utils/soundEffects';
 import { useContract } from '../../hooks/useContract';
 import { useStories } from '../../hooks/useStories';
 import { convertBlockchainSubmissions } from '../../utils/blockchainDataConverter';
+import {
+  useRoundTimer,
+  extractRoundTimingData,
+} from '../../hooks/useRoundTimer';
 
 export default function VotingScreen() {
   const router = useRouter();
@@ -39,6 +43,10 @@ export default function VotingScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [votingActive, setVotingActive] = useState(false);
   const [roundData, setRoundData] = useState<any>(null);
+  const [roundTimingData, setRoundTimingData] = useState<any>(null);
+
+  // Real-time countdown timer from blockchain data
+  const roundTimer = useRoundTimer(roundTimingData);
 
   // Animation values
   const resultsOpacity = useRef(new Animated.Value(0)).current;
@@ -67,6 +75,11 @@ export default function VotingScreen() {
             JSON.stringify(data.submissions, null, 2)
           );
           setRoundData(data.round);
+
+          // Extract round timing data for countdown timer
+          const timingData = extractRoundTimingData(data.round, story);
+          setRoundTimingData(timingData);
+          console.log('⏰ Round timing data set:', timingData);
 
           // Convert blockchain submissions to VoiceBlock format with full Supabase URLs
           // This will also fetch actual usernames from the blockchain!
@@ -240,38 +253,84 @@ export default function VotingScreen() {
       <View className="flex-1 relative z-10">
         {!showResults ? (
           <>
-            {/* Story Context */}
-            {story && (story.votingWindowHours || story.bountyStx) && (
-              <View className="flex-row gap-md px-lg pt-lg pb-md">
-                {story.votingWindowHours && (
-                  <View className="flex-1 flex-row items-center bg-card px-md py-sm rounded-xl gap-sm border border-accent/30">
-                    <Clock size={18} color="#00FFFF" />
+            {/* Real-Time Round Info - From Blockchain */}
+            <View className="px-lg pt-lg pb-md">
+              <View className="flex-row gap-md">
+                {/* Round Number */}
+                <View className="flex-1 bg-accent/20 rounded-xl px-md py-sm border border-accent/30">
+                  <View className="flex-row items-center justify-between">
                     <View className="flex-1">
-                      <Text className="text-caption text-text-secondary text-xs">
-                        Voting Window
+                      <Text className="text-caption text-text-secondary text-xs mb-0.5">
+                        Round
                       </Text>
-                      <Text className="text-body text-text-primary font-bold">
-                        {story.votingWindowHours}h
+                      <Text className="text-h3 text-accent font-bold">
+                        #{roundTimer.currentRoundNumber}
                       </Text>
                     </View>
+                    <Text className="text-2xl">🎯</Text>
                   </View>
-                )}
+                </View>
 
-                {story.bountyStx && (
-                  <View className="flex-1 flex-row items-center bg-card px-md py-sm rounded-xl gap-sm border border-secondary/30">
-                    <Coins size={18} color="#FF6B9D" />
+                {/* Live Countdown */}
+                <View
+                  className={`flex-1 rounded-xl px-md py-sm border ${
+                    roundTimer.isExpired
+                      ? 'bg-red-500/20 border-red-500/30'
+                      : 'bg-primary/20 border-primary/30'
+                  }`}
+                >
+                  <View className="flex-row items-center justify-between">
                     <View className="flex-1">
-                      <Text className="text-caption text-text-secondary text-xs">
-                        Bounty
+                      <Text className="text-caption text-text-secondary text-xs mb-0.5">
+                        {roundTimer.isExpired ? 'Voting Ended' : 'Time Left'}
                       </Text>
-                      <Text className="text-body text-text-primary font-bold">
-                        {story.bountyStx} STX
+                      <Text
+                        className={`text-h3 font-bold ${
+                          roundTimer.isExpired ? 'text-red-500' : 'text-primary'
+                        }`}
+                      >
+                        {roundTimer.timeRemainingFormatted}
                       </Text>
                     </View>
+                    <Clock
+                      size={20}
+                      color={roundTimer.isExpired ? '#EF4444' : '#FF2E63'}
+                    />
                   </View>
-                )}
+                  {/* Mini progress bar */}
+                  <View className="h-0.5 bg-border rounded-full overflow-hidden mt-sm">
+                    <View
+                      className={`h-full rounded-full ${
+                        roundTimer.isExpired ? 'bg-red-500' : 'bg-primary'
+                      }`}
+                      style={{
+                        width: `${Math.min(
+                          roundTimer.roundProgressPercentage,
+                          100
+                        )}%`,
+                      }}
+                    />
+                  </View>
+                </View>
               </View>
-            )}
+
+              {/* Bounty Info */}
+              {story && story.bountyStx && (
+                <View className="mt-md bg-secondary/20 rounded-xl px-md py-sm border border-secondary/30">
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center gap-sm">
+                      <Coins size={18} color="#FF6B9D" />
+                      <Text className="text-body text-text-secondary">
+                        Bounty Pool
+                      </Text>
+                    </View>
+                    <Text className="text-body text-secondary font-bold">
+                      {story.bountyStx} STX
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
 
             {/* Instructions */}
             <View className="px-lg pb-md">

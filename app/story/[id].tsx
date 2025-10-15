@@ -18,6 +18,10 @@ import { useAppStore } from '../../store/useAppStore';
 import { useContract } from '../../hooks/useContract';
 import { useStories } from '../../hooks/useStories';
 import { convertBlockchainSubmissions } from '../../utils/blockchainDataConverter';
+import {
+  useRoundTimer,
+  extractRoundTimingData,
+} from '../../hooks/useRoundTimer';
 
 export default function StoryDetailScreen() {
   const router = useRouter();
@@ -44,6 +48,10 @@ export default function StoryDetailScreen() {
   const [showBountyModal, setShowBountyModal] = useState(false);
   const [bountyAmount, setBountyAmount] = useState('');
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const [roundTimingData, setRoundTimingData] = useState<any>(null);
+
+  // Real-time countdown timer from blockchain data
+  const roundTimer = useRoundTimer(roundTimingData);
 
   // Try to find story in local store first, then fetch from blockchain
   const localStory = storyChains.find((s) => s.id === id);
@@ -104,6 +112,14 @@ export default function StoryDetailScreen() {
 
           if (roundData) {
             setCurrentRound(roundData);
+
+            // Extract round timing data for countdown timer
+            const timingData = extractRoundTimingData(
+              roundData.round,
+              storyData
+            );
+            setRoundTimingData(timingData);
+            console.log('⏰ Round timing data set:', timingData);
 
             // Check voting status
             const isVotingActive = await checkVotingActive(
@@ -304,6 +320,69 @@ export default function StoryDetailScreen() {
         {/* Story Info Cards */}
         <View className="px-lg pb-md">
           <View className="flex-row gap-md flex-wrap">
+            {/* Current Round Card - From Blockchain */}
+            <View className="flex-1 min-w-[45%] bg-accent/20 rounded-lg p-md border border-accent/30">
+              <View className="flex-row items-center mb-xs">
+                <Text className="text-2xl mr-sm">🎯</Text>
+                <Text className="text-body text-accent font-bold">
+                  Current Round
+                </Text>
+              </View>
+              <Text className="text-h2 text-text-primary">
+                {roundTimer.currentRoundNumber}
+              </Text>
+              <Text className="text-caption text-text-secondary mt-xs">
+                {roundTimer.totalBlocks} blocks completed
+              </Text>
+            </View>
+
+            {/* Time Remaining Card - Live Countdown */}
+            <View
+              className={`flex-1 min-w-[45%] rounded-lg p-md border ${
+                roundTimer.isExpired
+                  ? 'bg-red-500/20 border-red-500/30'
+                  : 'bg-primary/20 border-primary/30'
+              }`}
+            >
+              <View className="flex-row items-center mb-xs">
+                <Clock
+                  size={20}
+                  color={roundTimer.isExpired ? '#EF4444' : '#FF2E63'}
+                />
+                <Text
+                  className={`text-body font-bold ml-sm ${
+                    roundTimer.isExpired ? 'text-red-500' : 'text-primary'
+                  }`}
+                >
+                  {roundTimer.isExpired ? 'Voting Closed' : 'Time Left'}
+                </Text>
+              </View>
+              <Text
+                className={`text-h2 ${
+                  roundTimer.isExpired ? 'text-red-500' : 'text-text-primary'
+                }`}
+              >
+                {roundTimer.timeRemainingFormatted}
+              </Text>
+              {/* Round progress bar */}
+              <View className="h-1 bg-border rounded-full overflow-hidden mt-sm mb-xs">
+                <View
+                  className={`h-full rounded-full ${
+                    roundTimer.isExpired ? 'bg-red-500' : 'bg-primary'
+                  }`}
+                  style={{
+                    width: `${Math.min(
+                      roundTimer.roundProgressPercentage,
+                      100
+                    )}%`,
+                  }}
+                />
+              </View>
+              <Text className="text-caption text-text-secondary">
+                {roundTimer.votingWindowHours}h voting window
+              </Text>
+            </View>
+
             {/* Bounty Card */}
             {Number(story.bountyStx) > 0 && (
               <View className="flex-1 min-w-[45%] bg-secondary/20 rounded-lg p-md border border-secondary/30">
@@ -318,24 +397,6 @@ export default function StoryDetailScreen() {
                 </Text>
                 <Text className="text-caption text-text-secondary mt-xs">
                   Split among contributors
-                </Text>
-              </View>
-            )}
-
-            {/* Voting Window Card */}
-            {story.votingWindowHours && (
-              <View className="flex-1 min-w-[45%] bg-primary/20 rounded-lg p-md border border-primary/30">
-                <View className="flex-row items-center mb-xs">
-                  <Clock size={20} color="#FF2E63" />
-                  <Text className="text-body text-primary font-bold ml-sm">
-                    Voting Window
-                  </Text>
-                </View>
-                <Text className="text-h2 text-text-primary">
-                  {story.votingWindowHours}h
-                </Text>
-                <Text className="text-caption text-text-secondary mt-xs">
-                  Per voice block
                 </Text>
               </View>
             )}
