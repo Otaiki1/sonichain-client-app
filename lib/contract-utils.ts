@@ -240,21 +240,37 @@ export async function getRoundCounter(): Promise<number> {
 /**
  * Create a new story with initial prompt
  * @param prompt - Story prompt (max 500 characters)
+ * @param initTime - Initial time (epoch) for the story
+ * @param votingWindow - Voting window duration (epoch)
  * @returns Transaction options
  */
-export async function createStory(prompt: string) {
-  const functionArgs = [stringUtf8CV(prompt)];
+export async function createStory(
+  prompt: string,
+  initTime: number,
+  votingWindow: number
+) {
+  const functionArgs = [
+    stringUtf8CV(prompt),
+    uintCV(initTime),
+    uintCV(votingWindow),
+  ];
   return prepareContractCall('create-story', functionArgs);
 }
 
 /**
  * Submit a voice block to the current round
  * @param storyId - Story ID
- * @param uri - URI of the voice memo (e.g., IPFS hash)
+ * @param uri - URI of the voice memo (e.g., Supabase storage path like "uploads/xxx.m4a")
+ * @param now - Current timestamp (epoch)
  * @returns Transaction options
+ *
+ * NOTE: Now storing only the path (~64 chars) instead of full URL (146 chars),
+ * so string-ascii is sufficient. Path format: "uploads/timestamp-filename.m4a"
  */
-export async function submitBlock(storyId: number, uri: string) {
-  const functionArgs = [uintCV(storyId), stringAsciiCV(uri)];
+export async function submitBlock(storyId: number, uri: string, now: number) {
+  // Use stringAsciiCV - paths are ~64 chars, well under the limit
+  // Store only the path (e.g., "uploads/xxx.m4a") not full URL
+  const functionArgs = [uintCV(storyId), stringAsciiCV(uri), uintCV(now)];
   return prepareContractCall('submit-block', functionArgs);
 }
 
@@ -272,10 +288,15 @@ export async function voteBlock(submissionId: number) {
  * Finalize a round (select winning submission)
  * @param storyId - Story ID
  * @param roundNum - Round number to finalize
+ * @param now - Current timestamp (epoch)
  * @returns Transaction options
  */
-export async function finalizeRound(storyId: number, roundNum: number) {
-  const functionArgs = [uintCV(storyId), uintCV(roundNum)];
+export async function finalizeRound(
+  storyId: number,
+  roundNum: number,
+  now: number
+) {
+  const functionArgs = [uintCV(storyId), uintCV(roundNum), uintCV(now)];
   return prepareContractCall('finalize-round', functionArgs);
 }
 
@@ -311,6 +332,16 @@ export async function sealStory(storyId: number) {
  */
 export async function getStory(storyId: number) {
   return await callReadOnly('get-story', [uintCV(storyId)]);
+}
+
+/**
+ * Get round data
+ * @param storyId - Story ID
+ * @param roundNum - Round number
+ * @returns Round data or null
+ */
+export async function getStoryRound(storyId: number) {
+  return await callReadOnly('list-rounds', [uintCV(storyId)]);
 }
 
 /**
@@ -435,28 +466,42 @@ export async function getRoundSubmissionAt(
 }
 
 /**
- * Check if voting is currently active
+ * Check if voting is active at a specific time
  * @param storyId - Story ID
  * @param roundNum - Round number
- * @returns true if voting is active, false otherwise
+ * @param now - Timestamp (epoch) to check (defaults to current time)
+ * @returns true if voting is active at the given time, false otherwise
  */
-export async function isVotingActive(storyId: number, roundNum: number) {
-  return await callReadOnly('is-voting-active', [
+export async function isVotingActiveAt(
+  storyId: number,
+  roundNum: number,
+  now?: number
+) {
+  const timestamp = now || Math.floor(Date.now() / 1000);
+  return await callReadOnly('is-voting-active-at', [
     uintCV(storyId),
     uintCV(roundNum),
+    uintCV(timestamp),
   ]);
 }
 
 /**
- * Check if a round can be finalized
+ * Check if a round can be finalized at a specific time
  * @param storyId - Story ID
  * @param roundNum - Round number
- * @returns true if round can be finalized, false otherwise
+ * @param now - Timestamp (epoch) to check (defaults to current time)
+ * @returns true if round can be finalized at the given time, false otherwise
  */
-export async function canFinalizeRound(storyId: number, roundNum: number) {
-  return await callReadOnly('can-finalize-round', [
+export async function canFinalizeRoundAt(
+  storyId: number,
+  roundNum: number,
+  now?: number
+) {
+  const timestamp = now || Math.floor(Date.now() / 1000);
+  return await callReadOnly('can-finalize-round-at', [
     uintCV(storyId),
     uintCV(roundNum),
+    uintCV(timestamp),
   ]);
 }
 
@@ -473,9 +518,43 @@ export async function getWinningSubmission(storyId: number, roundNum: number) {
   ]);
 }
 
+/**
+ * List all round numbers for a story (up to MAX_ROUNDS_PER_STORY)
+ * @param storyId - Story ID
+ * @returns Array of round numbers
+ */
+export async function listRounds(storyId: number) {
+  return await callReadOnly('list-rounds', [uintCV(storyId)]);
+}
+
+/**
+ * List all submission IDs for a round (up to MAX_SUBMISSIONS_PER_ROUND)
+ * @param storyId - Story ID
+ * @param roundNum - Round number
+ * @returns Array of submission IDs
+ */
+export async function listRoundSubmissions(storyId: number, roundNum: number) {
+  return await callReadOnly('list-round-submissions', [
+    uintCV(storyId),
+    uintCV(roundNum),
+  ]);
+}
+
 // ===========================================
 // UTILITY FUNCTIONS
 // ===========================================
+
+/**
+ * Helper to extract value from blockchain response
+ * Handles nested {type, value} structures
+ */
+function extractValue(data: any): any {
+  if (data === null || data === undefined) return data;
+  if (typeof data === 'object' && 'value' in data) {
+    return data.value;
+  }
+  return data;
+}
 
 /**
  * Get all submissions for a round
@@ -490,20 +569,28 @@ export async function getAllRoundSubmissions(
   const count = await getRoundSubmissionCount(storyId, roundNum);
   const submissions = [];
 
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i <= count; i++) {
     const submissionData = await getRoundSubmissionAt(storyId, roundNum, i);
+    console.log('🔍 Submission data:', submissionData);
     if (submissionData) {
-      const submissionId = submissionData['submission-id'];
+      // Extract the actual value from the nested structure
+      const submissionId = submissionData.value['submission-id'].value;
+      console.log(
+        `🔍 Round submission ${roundNum}: submissionId =`,
+        submissionId
+      );
+
       const fullSubmission = await getSubmission(submissionId);
+      console.log('🔍 Full submission:', fullSubmission);
       if (fullSubmission) {
         submissions.push({
           id: submissionId,
-          ...fullSubmission,
+          ...fullSubmission.value,
         });
       }
     }
   }
-
+  console.log('🔍 Submissions:', submissions);
   return submissions;
 }
 
@@ -513,17 +600,29 @@ export async function getAllRoundSubmissions(
  * @returns Array of finalized blocks with full submission data
  */
 export async function getCompleteStoryChain(storyId: number) {
-  const storyData = await getStory(storyId);
-  if (!storyData) return [];
+  const storyDataRaw = await getStory(storyId);
+  if (!storyDataRaw) return [];
 
-  const totalBlocks = storyData['total-blocks'];
+  // Extract nested values from story data
+  const storyData = storyDataRaw.value || storyDataRaw;
+  const totalBlocks = extractValue(storyData['total-blocks']);
+
+  console.log(
+    `🔍 Getting complete story chain for story ${storyId}, totalBlocks:`,
+    totalBlocks
+  );
+
   const chain = [];
 
   for (let i = 0; i < totalBlocks; i++) {
-    const blockData = await getStoryChainBlock(storyId, i);
-    if (blockData) {
+    const blockDataRaw = await getStoryChainBlock(storyId, i);
+    if (blockDataRaw) {
+      // Extract nested values from block data
+      const blockData = blockDataRaw.value || blockDataRaw;
+
       // blockData contains: { submission-id, contributor, finalized-at }
-      const submissionId = blockData['submission-id'];
+      const submissionId = extractValue(blockData['submission-id']);
+      console.log(`🔍 Story chain block ${i}: submissionId =`, submissionId);
 
       // Fetch full submission details
       const fullSubmission = await getSubmission(submissionId);
@@ -534,7 +633,7 @@ export async function getCompleteStoryChain(storyId: number) {
           'submission-id': submissionId, // Include the ID explicitly
           id: submissionId, // Also as 'id' for easier access
           ...fullSubmission,
-          'finalized-at': blockData['finalized-at'], // Keep finalized timestamp
+          'finalized-at': extractValue(blockData['finalized-at']), // Keep finalized timestamp
         });
       }
     }

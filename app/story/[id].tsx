@@ -17,6 +17,7 @@ import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
 import { useContract } from '../../hooks/useContract';
 import { useStories } from '../../hooks/useStories';
+import { convertBlockchainSubmissions } from '../../utils/blockchainDataConverter';
 
 export default function StoryDetailScreen() {
   const router = useRouter();
@@ -31,6 +32,8 @@ export default function StoryDetailScreen() {
     sealStoryOnChain,
     isProcessing,
     address,
+    fetchStoryRounds,
+    fetchRoundSubmissions,
   } = useContract();
   const [playingBlockId, setPlayingBlockId] = useState<string | null>(null);
   const [story, setStory] = useState<any>(null);
@@ -40,6 +43,7 @@ export default function StoryDetailScreen() {
   const [hasVoted, setHasVoted] = useState(false);
   const [showBountyModal, setShowBountyModal] = useState(false);
   const [bountyAmount, setBountyAmount] = useState('');
+  const [submissions, setSubmissions] = useState<any[]>([]);
 
   // Try to find story in local store first, then fetch from blockchain
   const localStory = storyChains.find((s) => s.id === id);
@@ -54,7 +58,7 @@ export default function StoryDetailScreen() {
 
       try {
         // Use local story if available, otherwise fetch from blockchain
-        let storyData = localStory;
+        let storyData;
 
         if (!storyData) {
           const blockchainStory = await fetchStoryFromBlockchain(
@@ -66,11 +70,35 @@ export default function StoryDetailScreen() {
 
         if (storyData) {
           setStory(storyData);
+          console.log('🔍 Fetching current roundfor ID:', id);
+          const _currentRound = await fetchStoryRounds(Number(id));
+          const currentRoundValue = _currentRound.map(
+            (round: any) => round.value
+          );
+          console.log('🔍 Current round:', currentRoundValue);
 
           // Fetch current round data (use round 1 as default)
-          const currentRoundNum = 1; // Default to round 1
+          const currentRoundNum =
+            currentRoundValue[currentRoundValue.length - 1];
+
+          //Get Submisions  for the current round
+          const submissions = await fetchRoundSubmissions(
+            Number(id),
+            Number(currentRoundNum)
+          );
+          console.log('🔍 Raw blockchain submissions:', submissions);
+
+          // Convert blockchain submissions to VoiceBlock format with full Supabase URLs
+          // This will also fetch actual usernames from the blockchain!
+          const convertedSubmissions = await convertBlockchainSubmissions(
+            submissions || []
+          );
+          console.log('✅ Converted submissions:', convertedSubmissions);
+
+          setSubmissions(convertedSubmissions);
+
           const roundData = await fetchCurrentRound(
-            parseInt(id as string),
+            Number(id),
             currentRoundNum
           );
 
@@ -345,7 +373,7 @@ export default function StoryDetailScreen() {
           <Text className="text-h3 text-text-primary mb-md">
             Voice Blocks ({story.blocks.length})
           </Text>
-          {story.blocks.length === 0 ? (
+          {submissions.length === 0 ? (
             <View className="bg-card rounded-lg p-xl items-center border border-border">
               <Text className="text-5xl mb-md">🎤</Text>
               <Text className="text-body text-text-primary font-semibold mb-xs">
@@ -356,7 +384,7 @@ export default function StoryDetailScreen() {
               </Text>
             </View>
           ) : (
-            story.blocks.map((block: any, index: number) => (
+            submissions.map((block: any, index: number) => (
               <AnimatedVoiceBlock
                 key={block.id}
                 block={block}

@@ -25,7 +25,7 @@ import { Button } from '../../components/Button';
 import { GameButton } from '../../components/GameButton';
 import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
-import { usePinata } from '../../hooks/usePinata';
+import { useSupabase } from '../../hooks/useSupabase';
 import { useContract } from '../../hooks/useContract';
 import { useStories, extractBlockchainData } from '../../hooks/useStories';
 
@@ -34,7 +34,7 @@ export default function RecordScreen() {
   const { storyId } = useLocalSearchParams();
   const { user, addVoiceBlock, updateUser, addXP, unlockBadge, storyChains } =
     useAppStore();
-  const { uploadAudioWithMetadata, isUploading, getPinataUrl } = usePinata();
+  const { uploadAudio, isUploading } = useSupabase();
   const { submitBlockOnChain, isProcessing, checkVotingActive, fetchStory } =
     useContract();
   const { refreshStory } = useStories();
@@ -187,16 +187,8 @@ export default function RecordScreen() {
       // Step 1: Validate submission conditions
       console.log('🔍 Validating submission conditions...');
 
-      // Check if story exists and is active
-      if (blockchainStory['is-sealed'] !== false) {
-        Alert.alert(
-          'Story Not Active',
-          'This story is no longer accepting submissions.'
-        );
-        return;
-      }
-
-      // Check if storyId is present
+      // Check if storyId is present and fetch blockchain data
+      let blockchainStory: any = null;
 
       if (storyId) {
         // Only validate against blockchain if we have a numeric story ID
@@ -212,7 +204,7 @@ export default function RecordScreen() {
         }
 
         // Extract the nested blockchain data
-        const blockchainStory = extractBlockchainData(blockchainStoryRaw);
+        blockchainStory = extractBlockchainData(blockchainStoryRaw);
         console.log('🔍 Blockchain story extracted:', blockchainStory);
 
         if (blockchainStory?.['is-sealed']) {
@@ -222,12 +214,8 @@ export default function RecordScreen() {
           );
           return;
         }
-      } else {
-        console.log('No Story ID provided');
-      }
 
-      // Check if voting is active (can't submit during voting)
-      if (storyId) {
+        // Check if voting is active (can't submit during voting)
         if (blockchainStory['is-sealed'] !== false) {
           Alert.alert(
             'Voting In Progress',
@@ -235,35 +223,35 @@ export default function RecordScreen() {
           );
           return;
         }
+      } else {
+        console.log('No Story ID provided');
+        Alert.alert('Error', 'Story ID is required');
+        return;
       }
 
-      // Step 2: Upload audio to IPFS
-      console.log('📤 Uploading audio to IPFS...');
-      const metadata = {
-        storyId: String(storyId),
-        username: user.username,
-        duration: recordingDuration,
-        timestamp: new Date().toISOString(),
-        blockNumber: blockchainStory.currentRound,
-        walletAddress: user.walletAddress || '',
-      };
+      // Step 2: Upload audio file to Supabase Storage
+      console.log('📤 Uploading audio file to Supabase Storage...');
 
-      const ipfsResult = await uploadAudioWithMetadata(
-        recordedUri,
-        metadata,
-        `story-${storyId}-block-${blockchainStory.currentRound}.m4a`,
-        `metadata-${storyId}-block-${blockchainStory.totalBlocks}.json`
-      );
+      const currentRound =
+        blockchainStory?.['current-round'] ||
+        blockchainStory?.currentRound ||
+        1;
+      const audioFilename = `story-${storyId}-round-${currentRound}-${Date.now()}.m4a`;
 
-      if (!ipfsResult) {
+      const supabaseResult = await uploadAudio(recordedUri, audioFilename);
+
+      if (!supabaseResult) {
         Alert.alert(
-          'IPFS Upload Failed',
-          'Could not upload audio to IPFS. Please try again.'
+          'Upload Failed',
+          'Could not upload audio to Supabase. Please try again.'
         );
         return;
       }
 
-      console.log('✅ Audio uploaded to IPFS:', ipfsResult.audioCid);
+      console.log('✅ Audio file uploaded to Supabase:');
+      console.log('  - Public URL:', supabaseResult.url);
+      console.log('  - Storage Path:', supabaseResult.path);
+      console.log('  - Filename:', supabaseResult.filename);
 
       // Step 3: Submit to blockchain
       console.log('⛓️ Submitting to blockchain...');
@@ -276,9 +264,11 @@ export default function RecordScreen() {
         return;
       }
 
+      // Store only the storage path on blockchain (not full URL)
+      // Full URL can be reconstructed from path + Supabase URL
       const txId = await submitBlockOnChain(
         storyIdForSubmission,
-        ipfsResult.audioCid // Use IPFS hash as URI
+        supabaseResult.path // Store only the path: "uploads/xxx.m4a"
       );
 
       if (!txId) {
@@ -295,9 +285,8 @@ export default function RecordScreen() {
       const newBlock = {
         id: txId, // Use transaction ID as block ID
         username: user.username,
-        audioUri: ipfsResult.audioUrl, // Gateway URL for playback
-        audioCid: ipfsResult.audioCid, // IPFS hash
-        metadataCid: ipfsResult.metadataCid, // Metadata hash
+        audioUri: supabaseResult.url, // Supabase public URL for playback
+        audioCid: supabaseResult.path, // Storage path in Supabase
         duration: recordingDuration,
         timestamp: new Date().toISOString(),
         votes: 0,
@@ -471,7 +460,7 @@ export default function RecordScreen() {
           <GameButton
             title={
               isUploading
-                ? 'Uploading to IPFS...'
+                ? 'Uploading to Supabase...'
                 : isProcessing
                 ? 'Submitting to Blockchain...'
                 : 'Submit Recording'

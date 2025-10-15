@@ -12,6 +12,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { SoundEffects } from '../../utils/soundEffects';
 import { useContract } from '../../hooks/useContract';
 import { useStories } from '../../hooks/useStories';
+import { convertBlockchainSubmissions } from '../../utils/blockchainDataConverter';
 
 export default function VotingScreen() {
   const router = useRouter();
@@ -61,8 +62,23 @@ export default function VotingScreen() {
         );
 
         if (data) {
+          console.log(
+            '📦 RAW SUBMISSION DATA:',
+            JSON.stringify(data.submissions, null, 2)
+          );
           setRoundData(data.round);
-          setSubmissions(data.submissions || []);
+
+          // Convert blockchain submissions to VoiceBlock format with full Supabase URLs
+          // This will also fetch actual usernames from the blockchain!
+          const convertedSubmissions = await convertBlockchainSubmissions(
+            data.submissions || []
+          );
+          console.log(
+            '✅ Converted submissions:',
+            JSON.stringify(convertedSubmissions, null, 2)
+          );
+
+          setSubmissions(convertedSubmissions);
         }
 
         // Check if voting is active

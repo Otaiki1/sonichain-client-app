@@ -10,10 +10,10 @@ export const CONTRACT_CONFIG = {
   BLOCKCHAIN_ENABLED: true, // ✅ PRODUCTION: Blockchain enabled
   // Contract address (CRITICAL: Update with your deployed contract address!)
   // This must match your deployed Sonichain contract on Stacks testnet/mainnet
-  CONTRACT_ADDRESS: 'STZT44143V15WYBG72SWJJSQ7XTVXKTNMAKAZ9W',
+  CONTRACT_ADDRESS: 'ST1C0X7WZMGH6RAG3AG68R28XRSAW5XE321AQ0PXE',
 
   // Contract name (must match deployed contract)
-  CONTRACT_NAME: 'Sonichain',
+  CONTRACT_NAME: 'Sonichains',
 
   // Network configuration (switch to STACKS_MAINNET for production)
   NETWORK: STACKS_TESTNET,
@@ -28,12 +28,15 @@ export const CONTRACT_CONFIG = {
   VOTING_PERIOD: 144, // blocks (~24 hours)
   MIN_BLOCKS_TO_SEAL: 5,
   MAX_BLOCKS_PER_STORY: 50,
+  MAX_ROUNDS_PER_STORY: 10, // maximum rounds per story
+  MAX_SUBMISSIONS_PER_ROUND: 10, // maximum submissions per round
   PLATFORM_FEE_BPS: 250, // 2.5% platform fee
 
   // NFT Contract Configuration
-  NFT_CONTRACT_ADDRESS: 'STZT44143V15WYBG72SWJJSQ7XTVXKTNMAKAZ9W',
+  NFT_CONTRACT_ADDRESS: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
   NFT_CONTRACT_NAME: 'Soni_NFT',
-  NFT_TRAIT_CONTRACT: 'STZT44143V15WYBG72SWJJSQ7XTVXKTNMAKAZ9W.Soni_NFT_Trait',
+  NFT_TRAIT_CONTRACT:
+    'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.Soni_NFT_Trait',
 };
 
 /**
@@ -54,6 +57,7 @@ export const CONTRACT_ERRORS = {
   ERR_ALREADY_SUBMITTED: 'u111', // user already submitted in this round
   ERR_USERNAME_EXISTS: 'u112', // username already taken
   ERR_USER_ALREADY_REGISTERED: 'u113', // user already registered
+  ERR_ROUND_FULL: 'u114', // submissions reached cap for the round
 } as const;
 
 /**
@@ -70,10 +74,12 @@ export const CONTRACT_FUNCTIONS = {
   GET_CONTRIBUTOR_STATS: 'get-contributor-stats',
   GET_ROUND_SUBMISSION_COUNT: 'get-round-submission-count',
   GET_ROUND_SUBMISSION_AT: 'get-round-submission-at',
-  IS_VOTING_ACTIVE: 'is-voting-active',
-  CAN_FINALIZE_ROUND: 'can-finalize-round',
+  IS_VOTING_ACTIVE_AT: 'is-voting-active-at',
+  CAN_FINALIZE_ROUND_AT: 'can-finalize-round-at',
   GET_USER: 'get-user',
   GET_WINNING_SUBMISSION: 'get-winning-submission',
+  LIST_ROUNDS: 'list-rounds',
+  LIST_ROUND_SUBMISSIONS: 'list-round-submissions',
 
   // Counter functions (NEW - PRODUCTION)
   GET_STORY_COUNTER: 'get-story-counter',

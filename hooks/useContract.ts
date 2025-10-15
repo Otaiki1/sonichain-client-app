@@ -7,6 +7,9 @@ import {
   makeContractCall,
   AnchorMode,
   PostConditionMode,
+  cvToJSON,
+  cvToValue,
+  cvToString,
 } from '@stacks/transactions';
 import { CONTRACT_CONFIG } from '@/lib/contract-config';
 import * as ContractUtils from '@/lib/contract-utils';
@@ -197,10 +200,21 @@ export function useContract() {
   /**
    * Create a new story on the blockchain
    * @param prompt - Story prompt (max 500 characters)
+   * @param initTime - Initial time (epoch) for the story (defaults to current time)
+   * @param votingWindow - Voting window duration in seconds (defaults to 24 hours)
    * @returns The transaction ID (we'll use this as the story ID for now)
    */
-  async function createStoryOnChain(prompt: string): Promise<string | null> {
-    const txOptions = await ContractUtils.createStory(prompt);
+  async function createStoryOnChain(
+    prompt: string,
+    initTime?: number,
+    votingWindow?: number
+  ): Promise<string | null> {
+    // Default to current Unix timestamp (in seconds) if not provided
+    const now = initTime || Math.floor(Date.now() / 1000);
+    // Default to 24 hours (86400 seconds) if not provided
+    const window = votingWindow || 86400;
+
+    const txOptions = await ContractUtils.createStory(prompt, now, window);
 
     const txId = await callContract(
       txOptions.functionName,
@@ -217,9 +231,17 @@ export function useContract() {
    * Submit a voice block to current round
    * @param storyId - Story ID
    * @param uri - URI of the voice memo (e.g., IPFS hash)
+   * @param now - Current timestamp (epoch) - defaults to current time if not provided
    */
-  async function submitBlockOnChain(storyId: number, uri: string) {
-    const txOptions = await ContractUtils.submitBlock(storyId, uri);
+  async function submitBlockOnChain(
+    storyId: number,
+    uri: string,
+    now?: number
+  ) {
+    // Default to current Unix timestamp (in seconds) if not provided
+    const timestamp = now || Math.floor(Date.now() / 1000);
+
+    const txOptions = await ContractUtils.submitBlock(storyId, uri, timestamp);
 
     return await callContract(
       txOptions.functionName,
@@ -254,9 +276,21 @@ export function useContract() {
    * Finalize a round (select winning submission and start next round)
    * @param storyId - Story ID
    * @param roundNum - Round number to finalize
+   * @param now - Current timestamp (epoch) - defaults to current time if not provided
    */
-  async function finalizeRoundOnChain(storyId: number, roundNum: number) {
-    const txOptions = await ContractUtils.finalizeRound(storyId, roundNum);
+  async function finalizeRoundOnChain(
+    storyId: number,
+    roundNum: number,
+    now?: number
+  ) {
+    // Default to current Unix timestamp (in seconds) if not provided
+    const timestamp = now || Math.floor(Date.now() / 1000);
+
+    const txOptions = await ContractUtils.finalizeRound(
+      storyId,
+      roundNum,
+      timestamp
+    );
 
     return await callContract(
       txOptions.functionName,
@@ -317,6 +351,18 @@ export function useContract() {
    * @param storyId - Story ID
    * @param roundNum - Round number
    */
+  async function fetchStoryRounds(storyId: number) {
+    const _rounds = await ContractUtils.getStoryRound(storyId);
+    console.log('🔍 Rounds upon first fetch:', _rounds);
+    console.log('🔍 Rounds upon first sort:', _rounds.value);
+    return _rounds.value;
+  }
+
+  /**
+   * Get round data
+   * @param storyId - Story ID
+   * @param roundNum - Round number
+   */
   async function fetchRound(storyId: number, roundNum: number) {
     return await ContractUtils.getRound(storyId, roundNum);
   }
@@ -327,7 +373,12 @@ export function useContract() {
    * @param roundNum - Round number
    */
   async function fetchRoundSubmissions(storyId: number, roundNum: number) {
-    return await ContractUtils.getAllRoundSubmissions(storyId, roundNum);
+    const _submissions = await ContractUtils.getAllRoundSubmissions(
+      storyId,
+      roundNum
+    );
+    console.log('🔍 Submissions upon first fetch:', _submissions);
+    return _submissions;
   }
 
   /**
@@ -349,21 +400,31 @@ export function useContract() {
   }
 
   /**
-   * Check if voting is active for a round
+   * Check if voting is active at a specific time (defaults to current time)
    * @param storyId - Story ID
    * @param roundNum - Round number
+   * @param now - Timestamp (epoch) to check - defaults to current time if not provided
    */
-  async function checkVotingActive(storyId: number, roundNum: number) {
-    return await ContractUtils.isVotingActive(storyId, roundNum);
+  async function checkVotingActive(
+    storyId: number,
+    roundNum: number,
+    now?: number
+  ) {
+    return await ContractUtils.isVotingActiveAt(storyId, roundNum, now);
   }
 
   /**
-   * Check if round can be finalized
+   * Check if round can be finalized at a specific time (defaults to current time)
    * @param storyId - Story ID
    * @param roundNum - Round number
+   * @param now - Timestamp (epoch) to check - defaults to current time if not provided
    */
-  async function checkCanFinalize(storyId: number, roundNum: number) {
-    return await ContractUtils.canFinalizeRound(storyId, roundNum);
+  async function checkCanFinalize(
+    storyId: number,
+    roundNum: number,
+    now?: number
+  ) {
+    return await ContractUtils.canFinalizeRoundAt(storyId, roundNum, now);
   }
 
   /**
@@ -432,5 +493,6 @@ export function useContract() {
     checkHasVoted,
     checkVotingActive,
     checkCanFinalize,
+    fetchStoryRounds,
   };
 }

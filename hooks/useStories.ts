@@ -208,15 +208,23 @@ export function useStories() {
       const voteCount =
         submission['vote-count']?.value ?? submission['vote-count'] ?? 0;
 
+      // Reconstruct full Supabase URL from stored path
+      // If uri is a path like "uploads/xxx.m4a", prepend Supabase URL
+      // If uri is already a full URL (legacy), use as-is
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+      const fullAudioUri = uri.startsWith('http')
+        ? uri
+        : `${supabaseUrl}/storage/v1/object/public/audio-files/${uri}`;
+
       return {
         id:
           submissionId?.toString() ||
           submission['submission-id']?.toString() ||
           '0',
         username: contributor || 'Unknown', // Use principal address temporarily
-        audioUri: uri, // ✅ IPFS URI from contract
-        audioCid: uri, // Store CID for IPFS operations
-        duration: 0, // Will be fetched from IPFS metadata
+        audioUri: fullAudioUri, // ✅ Full URL for playback
+        audioCid: uri, // Store original path/CID for reference
+        duration: 0, // Will be fetched from metadata
         timestamp: submittedAt
           ? new Date(submittedAt * 1000).toISOString()
           : new Date().toISOString(),

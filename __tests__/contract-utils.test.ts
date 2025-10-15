@@ -45,25 +45,34 @@ describe('Contract Utils - User Functions', () => {
 describe('Contract Utils - Story Functions', () => {
   describe('createStory', () => {
     it('should prepare create-story transaction with prompt', async () => {
-      const result = await createStory('Once upon a time...');
+      const now = Math.floor(Date.now() / 1000);
+      const votingWindow = 86400; // 24 hours
+      const result = await createStory(
+        'Once upon a time...',
+        now,
+        votingWindow
+      );
 
       expect(result).toHaveProperty('functionName', 'create-story');
-      expect(result.functionArgs).toHaveLength(1);
+      expect(result.functionArgs).toHaveLength(3);
     });
 
     it('should handle long prompts', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const votingWindow = 86400;
       const longPrompt = 'A'.repeat(500);
-      const result = await createStory(longPrompt);
+      const result = await createStory(longPrompt, now, votingWindow);
       expect(result.functionName).toBe('create-story');
     });
   });
 
   describe('submitBlock', () => {
     it('should prepare submit-block transaction', async () => {
-      const result = await submitBlock(1, 'ipfs://QmTestHash');
+      const now = Math.floor(Date.now() / 1000);
+      const result = await submitBlock(1, 'ipfs://QmTestHash', now);
 
       expect(result).toHaveProperty('functionName', 'submit-block');
-      expect(result.functionArgs).toHaveLength(2);
+      expect(result.functionArgs).toHaveLength(3);
     });
   });
 
@@ -88,10 +97,11 @@ describe('Contract Utils - Voting Functions', () => {
 
   describe('finalizeRound', () => {
     it('should prepare finalize-round transaction', async () => {
-      const result = await finalizeRound(1, 1);
+      const now = Math.floor(Date.now() / 1000);
+      const result = await finalizeRound(1, 1, now);
 
       expect(result).toHaveProperty('functionName', 'finalize-round');
-      expect(result.functionArgs).toHaveLength(2);
+      expect(result.functionArgs).toHaveLength(3);
     });
   });
 });

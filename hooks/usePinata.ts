@@ -67,32 +67,32 @@ export function usePinata() {
 
     try {
       // Debug: Log the request details
-      console.log('🔧 Uploading audio to Pinata...');
+      console.log('🔧 Uploading audio file to Pinata IPFS...');
       console.log('Audio URI:', audioUri);
       console.log('Filename:', filename);
       console.log('Upload URL:', `${PINATA_CONFIG.UPLOAD_URL}/v3/files`);
       console.log('JWT configured:', !!PINATA_CONFIG.JWT);
 
-      // Create FormData for the upload
+      // Create FormData for the audio file upload
       const formData = new FormData();
 
-      // For React Native, append file directly using the URI
+      // Append the actual audio file using the local URI
+      // React Native will read the file from the URI and upload it
       formData.append('file', {
         uri: audioUri,
-        type: 'audio/m4a',
+        type: 'audio/m4a', // MIME type for audio
         name: filename,
       } as any);
 
-      // Optional: Add metadata
-      const metadata = JSON.stringify({
+      // Add minimal Pinata metadata (just for identification, not stored on-chain)
+      const pinataMetadata = JSON.stringify({
         name: filename,
         keyvalues: {
           app: 'SoniChain',
           type: 'audio',
-          uploadedAt: new Date().toISOString(),
         },
       });
-      formData.append('pinataMetadata', metadata);
+      formData.append('pinataMetadata', pinataMetadata);
 
       // Upload to Pinata
       const uploadResponse = await fetch(
