@@ -12,6 +12,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -22,6 +23,7 @@ import {
   Copy,
   ExternalLink,
   RotateCw,
+  RefreshCw,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { AnimatedStoryCard } from '../../components/AnimatedStoryCard';
@@ -33,6 +35,10 @@ import { usePinata } from '../../hooks/usePinata';
 import { useContract } from '../../hooks/useContract';
 import { useStories } from '../../hooks/useStories';
 import { useRealTimeUpdates } from '../../hooks/useRealTimeUpdates';
+import {
+  openTransactionInExplorer,
+  formatTxId,
+} from '../../utils/explorerUtils';
 import { StoryChain } from '@/types';
 
 const CATEGORIES = [
@@ -296,7 +302,7 @@ export default function HomeScreen() {
             {isRefreshing ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text className="text-xl">🔃</Text>
+              <RefreshCw size={16} color="#FF6B9D" />
             )}
           </TouchableOpacity>
           <TouchableOpacity
@@ -627,18 +633,24 @@ export default function HomeScreen() {
 
             {/* Transaction ID (for success) */}
             {resultData?.success && resultData?.txId && (
-              <View className="bg-background/50 rounded-xl p-md mb-lg border border-accent/30">
+              <TouchableOpacity
+                onPress={() => openTransactionInExplorer(resultData.txId!)}
+                className="bg-background/50 rounded-xl p-md mb-lg border border-accent/30"
+                activeOpacity={0.7}
+              >
                 <Text className="text-caption text-text-secondary text-center mb-xs">
-                  Transaction ID
+                  ⛓️ View on Blockchain Explorer
                 </Text>
                 <Text
-                  className="text-small text-accent font-mono text-center"
+                  className="text-small text-accent font-mono text-center underline"
                   numberOfLines={1}
                 >
-                  {resultData.txId.substring(0, 8)}...
-                  {resultData.txId.substring(resultData.txId.length - 6)}
+                  {formatTxId(resultData.txId!)}
                 </Text>
-              </View>
+                <Text className="text-caption text-primary text-center mt-xs">
+                  Tap to open →
+                </Text>
+              </TouchableOpacity>
             )}
 
             {/* XP Earned (for success) */}

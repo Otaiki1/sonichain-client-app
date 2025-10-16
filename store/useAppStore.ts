@@ -17,6 +17,7 @@ interface AppState {
   setHasCompletedOnboarding: (value: boolean) => void;
   addStoryChain: (story: StoryChain) => void;
   updateStoryChain: (storyId: string, updates: Partial<StoryChain>) => void;
+  setStoryChains: (stories: StoryChain[]) => void;
   addVoiceBlock: (storyId: string, block: any) => void;
   initializeData: () => Promise<void>;
   saveData: () => Promise<void>;
@@ -92,11 +93,30 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   updateStoryChain: (storyId, updates) => {
-    set((state) => ({
-      storyChains: state.storyChains.map((chain) =>
-        chain.id === storyId ? { ...chain, ...updates } : chain
-      ),
-    }));
+    set((state) => {
+      const existingIndex = state.storyChains.findIndex(
+        (chain) => chain.id === storyId
+      );
+
+      if (existingIndex >= 0) {
+        // Update existing story
+        const updatedChains = [...state.storyChains];
+        updatedChains[existingIndex] = {
+          ...updatedChains[existingIndex],
+          ...updates,
+        };
+        return { storyChains: updatedChains };
+      } else {
+        // Add new story if it doesn't exist
+        return { storyChains: [...state.storyChains, updates as StoryChain] };
+      }
+    });
+    get().saveData();
+  },
+
+  setStoryChains: (stories) => {
+    console.log(`📚 Setting ${stories.length} stories in store`);
+    set({ storyChains: stories });
     get().saveData();
   },
 

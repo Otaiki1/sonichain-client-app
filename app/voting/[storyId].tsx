@@ -6,6 +6,7 @@ import { ArrowLeft, Clock, Coins, Zap } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { AnimatedVoiceBlock } from '../../components/AnimatedVoiceBlock';
+import { AnimatedLoader } from '../../components/AnimatedLoader';
 import { GameButton } from '../../components/GameButton';
 import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
@@ -368,11 +369,10 @@ export default function VotingScreen() {
             {/* Battle Layout */}
             <View className="flex-1 px-lg">
               {isLoading ? (
-                <View className="flex-1 justify-center items-center">
-                  <Text className="text-body text-text-secondary">
-                    Loading submissions...
-                  </Text>
-                </View>
+                <AnimatedLoader
+                  text="Loading Submissions"
+                  subtext="Preparing the voting arena..."
+                />
               ) : submissions.length === 0 ? (
                 <View className="flex-1 justify-center items-center px-lg">
                   <Text className="text-body text-text-secondary text-center">

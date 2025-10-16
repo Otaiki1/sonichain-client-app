@@ -5,6 +5,7 @@ import { StoryChain, VoiceBlock } from '@/types';
 import { useCache, CacheKeys } from './useCache';
 import { usePinata } from './usePinata';
 import * as ContractUtils from '@/lib/contract-utils';
+import { Alert } from 'react-native';
 
 /**
  * Helper function to extract data from nested blockchain response
@@ -44,8 +45,9 @@ export function useStories() {
     fetchCompleteStory,
     address,
   } = useContract();
-  const { storyChains, addStoryChain, updateStoryChain } = useAppStore();
-  const { fetchWithCache, invalidateCache } = useCache();
+  const { storyChains, addStoryChain, updateStoryChain, setStoryChains } =
+    useAppStore();
+  const { fetchWithCache, invalidateCache, clearAllCache } = useCache();
   const { getFromIPFS } = usePinata();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -382,11 +384,11 @@ export function useStories() {
         appStories
       );
 
-      // ✅ AUTO-UPDATE: Update app store with fresh blockchain data
-      appStories.forEach((story) => {
-        updateStoryChain(story.id, story);
-      });
-      console.log('🔄 App store updated with blockchain stories', appStories);
+      // ✅ AUTO-UPDATE: Replace all stories in store with fresh blockchain data
+      setStoryChains(appStories);
+      console.log(
+        `🔄 App store updated with ${appStories.length} blockchain stories`
+      );
 
       return appStories;
     } catch (err: any) {
@@ -396,12 +398,7 @@ export function useStories() {
     } finally {
       setIsLoading(false);
     }
-  }, [
-    convertBlockchainStory,
-    convertBlockchainSubmission,
-    fetchCompleteStory,
-    updateStoryChain,
-  ]);
+  }, [convertBlockchainStory, convertBlockchainSubmission, setStoryChains]);
 
   /**
    * Fetch current round data for a story
@@ -467,14 +464,33 @@ export function useStories() {
 
   /**
    * Refresh all stories from blockchain
-   * Note: fetchAllStories already auto-updates the store
+   * Clears ALL caches and fetches completely fresh data
    */
   const refreshAllStories = useCallback(async () => {
     console.log('🔄 Refreshing all stories from blockchain...');
-    const updatedStories = await fetchAllStories();
-    console.log('✅ All stories refreshed and store updated');
-    return updatedStories;
-  }, [fetchAllStories]);
+    console.log('🗑️ Clearing all caches for fresh data...');
+
+    try {
+      // Clear all cached blockchain data
+      await clearAllCache();
+      console.log('✅ Cache cleared successfully');
+
+      // Fetch fresh data from blockchain
+      const updatedStories = await fetchAllStories();
+      console.log(
+        `✅ ${updatedStories.length} stories refreshed with fresh blockchain data`
+      );
+
+      return updatedStories;
+    } catch (error: any) {
+      console.error('❌ Error refreshing stories:', error);
+      Alert.alert(
+        'Refresh Failed',
+        'Could not refresh stories from blockchain. Please try again.'
+      );
+      return [];
+    }
+  }, [fetchAllStories, clearAllCache]);
 
   /**
    * Get stories created by current user

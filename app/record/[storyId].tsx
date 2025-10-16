@@ -8,6 +8,7 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
@@ -28,6 +29,10 @@ import { useAppStore } from '../../store/useAppStore';
 import { useSupabase } from '../../hooks/useSupabase';
 import { useContract } from '../../hooks/useContract';
 import { useStories, extractBlockchainData } from '../../hooks/useStories';
+import {
+  openTransactionInExplorer,
+  formatTxId,
+} from '../../utils/explorerUtils';
 
 export default function RecordScreen() {
   const router = useRouter();
@@ -540,18 +545,24 @@ export default function RecordScreen() {
 
             {/* Transaction ID (for success) */}
             {resultData?.success && resultData?.txId && (
-              <View className="bg-background/50 rounded-xl p-md mb-lg border border-accent/30">
+              <TouchableOpacity
+                onPress={() => openTransactionInExplorer(resultData.txId!)}
+                className="bg-background/50 rounded-xl p-md mb-lg border border-accent/30"
+                activeOpacity={0.7}
+              >
                 <Text className="text-caption text-text-secondary text-center mb-xs">
-                  ⛓️ Blockchain Transaction
+                  ⛓️ View on Blockchain Explorer
                 </Text>
                 <Text
-                  className="text-small text-accent font-mono text-center"
+                  className="text-small text-accent font-mono text-center underline"
                   numberOfLines={1}
                 >
-                  {resultData.txId.substring(0, 8)}...
-                  {resultData.txId.substring(resultData.txId.length - 6)}
+                  {formatTxId(resultData.txId!)}
                 </Text>
-              </View>
+                <Text className="text-caption text-primary text-center mt-xs">
+                  Tap to open →
+                </Text>
+              </TouchableOpacity>
             )}
 
             {/* XP Earned (for success) */}

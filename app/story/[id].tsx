@@ -10,11 +10,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView as RNSafeArea,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Clock, Coins } from 'lucide-react-native';
 import { AnimatedVoiceBlock } from '../../components/AnimatedVoiceBlock';
+import { AnimatedLoader } from '../../components/AnimatedLoader';
 import { GameButton } from '../../components/GameButton';
 import { BackgroundPulse } from '../../components/BackgroundPulse';
 import { useAppStore } from '../../store/useAppStore';
@@ -25,6 +27,7 @@ import {
   useRoundTimer,
   extractRoundTimingData,
 } from '../../hooks/useRoundTimer';
+import { getExplorerTxUrl } from '../../utils/explorerUtils';
 
 export default function StoryDetailScreen() {
   const router = useRouter();
@@ -148,11 +151,11 @@ export default function StoryDetailScreen() {
   if (isLoading) {
     return (
       <SafeAreaView className="flex-1 bg-background">
-        <View className="flex-1 justify-center items-center">
-          <Text className="text-h2 text-text-primary text-center">
-            Loading story...
-          </Text>
-        </View>
+        <BackgroundPulse />
+        <AnimatedLoader
+          text="Loading Story"
+          subtext="Fetching data from blockchain..."
+        />
       </SafeAreaView>
     );
   }
@@ -215,7 +218,20 @@ export default function StoryDetailScreen() {
                 );
                 return;
               }
-              Alert.alert('Success!', `Round ${currentRoundNum} finalized!`);
+              Alert.alert(
+                'Success!',
+                `Round ${currentRoundNum} finalized!\n\nTransaction: ${txId.substring(
+                  0,
+                  10
+                )}...`,
+                [
+                  {
+                    text: 'View on Explorer',
+                    onPress: () => Linking.openURL(getExplorerTxUrl(txId)),
+                  },
+                  { text: 'OK', style: 'default' },
+                ]
+              );
               await refreshStory(Number(id));
             } catch (error: any) {
               console.error('Error finalizing round:', error);
@@ -262,7 +278,17 @@ export default function StoryDetailScreen() {
               }
               Alert.alert(
                 'Story Sealed! 🎉',
-                'Rewards are being distributed to contributors!'
+                `Rewards are being distributed to contributors!\n\nTransaction: ${txId.substring(
+                  0,
+                  10
+                )}...`,
+                [
+                  {
+                    text: 'View on Explorer',
+                    onPress: () => Linking.openURL(getExplorerTxUrl(txId)),
+                  },
+                  { text: 'OK', style: 'default' },
+                ]
               );
               await refreshStory(Number(id));
               setTimeout(() => router.push(`/sealed/${id}`), 1200);
@@ -299,7 +325,20 @@ export default function StoryDetailScreen() {
       await refreshStory(Number(id));
       setShowBountyModal(false);
       setBountyAmount('');
-      Alert.alert('Success!', `Added ${bountyAmount} STX to bounty pool`);
+      Alert.alert(
+        'Success!',
+        `Added ${bountyAmount} STX to bounty pool\n\nTransaction: ${txId.substring(
+          0,
+          10
+        )}...`,
+        [
+          {
+            text: 'View on Explorer',
+            onPress: () => Linking.openURL(getExplorerTxUrl(txId)),
+          },
+          { text: 'OK', style: 'default' },
+        ]
+      );
     } catch (error: any) {
       console.error('Bounty funding error:', error);
       Alert.alert('Error', error.message || 'Failed to fund bounty');
