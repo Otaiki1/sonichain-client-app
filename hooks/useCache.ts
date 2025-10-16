@@ -15,15 +15,32 @@ interface CacheEntry<T> {
 const CACHE_PREFIX = '@sonichain_cache_';
 const DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
 
+// OPTIMIZATION: In-memory cache for faster access
+const memoryCache = new Map<string, CacheEntry<any>>();
+const MAX_MEMORY_CACHE_SIZE = 50; // Limit memory cache size
+
 export function useCache() {
   const [isLoading, setIsLoading] = useState(false);
 
   /**
-   * Get data from cache
+   * Get data from cache - OPTIMIZED with memory cache
    */
   const getFromCache = useCallback(
     async <T>(key: string): Promise<T | null> => {
       try {
+        // OPTIMIZATION: Check memory cache first (fastest)
+        const memoryKey = `memory_${key}`;
+        if (memoryCache.has(memoryKey)) {
+          const entry = memoryCache.get(memoryKey)!;
+          if (Date.now() <= entry.expiresAt) {
+            console.log(`⚡ Memory cache HIT: ${key}`);
+            return entry.data;
+          } else {
+            memoryCache.delete(memoryKey);
+          }
+        }
+
+        // Check AsyncStorage cache
         const cacheKey = `${CACHE_PREFIX}${key}`;
         const cached = await AsyncStorage.getItem(cacheKey);
 
@@ -37,7 +54,17 @@ export function useCache() {
           return null;
         }
 
-        console.log(`📦 Cache HIT: ${key}`);
+        console.log(`📦 Storage cache HIT: ${key}`);
+
+        // OPTIMIZATION: Store in memory cache for faster future access
+        memoryCache.set(memoryKey, entry);
+
+        // Clean up memory cache if it gets too large
+        if (memoryCache.size > MAX_MEMORY_CACHE_SIZE) {
+          const firstKey = memoryCache.keys().next().value;
+          memoryCache.delete(firstKey);
+        }
+
         return entry.data;
       } catch (error) {
         console.error('Cache read error:', error);
@@ -48,7 +75,7 @@ export function useCache() {
   );
 
   /**
-   * Save data to cache
+   * Save data to cache - OPTIMIZED with memory cache
    */
   const saveToCache = useCallback(
     async <T>(
@@ -57,15 +84,29 @@ export function useCache() {
       ttl: number = DEFAULT_TTL
     ): Promise<void> => {
       try {
-        const cacheKey = `${CACHE_PREFIX}${key}`;
         const entry: CacheEntry<T> = {
           data,
           timestamp: Date.now(),
           expiresAt: Date.now() + ttl,
         };
 
+        // OPTIMIZATION: Save to both memory and AsyncStorage
+        const memoryKey = `memory_${key}`;
+        const cacheKey = `${CACHE_PREFIX}${key}`;
+
+        // Save to memory cache (fast access)
+        memoryCache.set(memoryKey, entry);
+
+        // Save to AsyncStorage (persistent)
         await AsyncStorage.setItem(cacheKey, JSON.stringify(entry));
-        console.log(`💾 Cache SAVE: ${key}`);
+
+        // Clean up memory cache if it gets too large
+        if (memoryCache.size > MAX_MEMORY_CACHE_SIZE) {
+          const firstKey = memoryCache.keys().next().value;
+          memoryCache.delete(firstKey);
+        }
+
+        console.log(`💾 Cache SAVE: ${key} (memory + storage)`);
       } catch (error) {
         console.error('Cache write error:', error);
       }
@@ -74,27 +115,36 @@ export function useCache() {
   );
 
   /**
-   * Invalidate specific cache entry
+   * Invalidate specific cache entry - OPTIMIZED with memory cache
    */
   const invalidateCache = useCallback(async (key: string): Promise<void> => {
     try {
+      // OPTIMIZATION: Clear from both memory and storage
+      const memoryKey = `memory_${key}`;
       const cacheKey = `${CACHE_PREFIX}${key}`;
+
+      memoryCache.delete(memoryKey);
       await AsyncStorage.removeItem(cacheKey);
-      console.log(`🗑️ Cache INVALIDATE: ${key}`);
+
+      console.log(`🗑️ Cache INVALIDATE: ${key} (memory + storage)`);
     } catch (error) {
       console.error('Cache invalidate error:', error);
     }
   }, []);
 
   /**
-   * Clear all cache
+   * Clear all cache - OPTIMIZED with memory cache
    */
   const clearAllCache = useCallback(async (): Promise<void> => {
     try {
+      // OPTIMIZATION: Clear both memory and storage caches
+      memoryCache.clear();
+
       const keys = await AsyncStorage.getAllKeys();
       const cacheKeys = keys.filter((key) => key.startsWith(CACHE_PREFIX));
       await AsyncStorage.multiRemove(cacheKeys);
-      console.log('🗑️ Cache CLEARED');
+
+      console.log('🗑️ Cache CLEARED (memory + storage)');
     } catch (error) {
       console.error('Cache clear error:', error);
     }

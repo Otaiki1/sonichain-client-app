@@ -16,15 +16,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import {
-  Plus,
-  Search,
-  X,
-  Copy,
-  ExternalLink,
-  RotateCw,
-  RefreshCw,
-} from 'lucide-react-native';
+// OPTIMIZATION: Import only needed icons
+import { Plus, Search, X, RefreshCw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { AnimatedStoryCard } from '../../components/AnimatedStoryCard';
 import { Button } from '../../components/Button';

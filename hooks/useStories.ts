@@ -341,14 +341,14 @@ export function useStories() {
 
   /**
    * PRODUCTION: Fetch all available stories from blockchain using story-counter
-   * This is the proper way to get all stories in production
+   * OPTIMIZED VERSION - Parallel processing and batching
    */
   const fetchAllStories = useCallback(async (): Promise<StoryChain[]> => {
     setIsLoading(true);
     setError(null);
 
     try {
-      console.log('📚 PRODUCTION: Fetching all stories from blockchain...');
+      console.log('🚀 OPTIMIZED: Fetching all stories from blockchain...');
 
       // Get all story IDs from blockchain using story-counter
       const allStories = await ContractUtils.getAllStoriesFromBlockchain();
@@ -358,30 +358,50 @@ export function useStories() {
         return [];
       }
 
-      // Convert blockchain stories to app format
+      console.log(
+        `📚 Processing ${allStories.length} stories in parallel batches...`
+      );
+
+      // OPTIMIZATION: Process stories in parallel batches to avoid blocking UI
+      const batchSize = 3; // Process 3 stories at a time
       const appStories: StoryChain[] = [];
 
-      for (const blockchainStory of allStories) {
-        const storyId = blockchainStory.id;
-        const appStory = await convertBlockchainStory(blockchainStory, storyId);
+      for (let i = 0; i < allStories.length; i += batchSize) {
+        const batch = allStories.slice(i, i + batchSize);
 
-        // // Fetch story chain (finalized blocks)
-        // const storyChain = await fetchCompleteStory(storyId);
-        // if (storyChain && Array.isArray(storyChain)) {
-        //   appStory.blocks = storyChain.map((block) =>
-        //     convertBlockchainSubmission(
-        //       block,
-        //       block.id || block['submission-id']
-        //     )
-        //   );
-        // }
+        const batchPromises = batch.map(async (blockchainStory) => {
+          const storyId = blockchainStory.id;
 
-        appStories.push(appStory);
+          try {
+            const appStory = await convertBlockchainStory(
+              blockchainStory,
+              storyId
+            );
+
+            // OPTIMIZATION: Only fetch complete story if needed (lazy loading)
+            // This can be done later when user actually views the story
+            // appStory.blocks = []; // Empty for now, load on demand
+
+            return appStory;
+          } catch (error) {
+            console.error(`❌ Error processing story ${storyId}:`, error);
+            return null;
+          }
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        appStories.push(
+          ...batchResults.filter((story): story is StoryChain => story !== null)
+        );
+
+        // Small delay between batches to prevent overwhelming the blockchain
+        if (i + batchSize < allStories.length) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
       }
 
       console.log(
-        `✅ Successfully loaded ${appStories.length} stories from blockchain`,
-        appStories
+        `✅ Successfully loaded ${appStories.length} stories from blockchain (optimized)`
       );
 
       // ✅ AUTO-UPDATE: Replace all stories in store with fresh blockchain data
@@ -398,7 +418,7 @@ export function useStories() {
     } finally {
       setIsLoading(false);
     }
-  }, [convertBlockchainStory, convertBlockchainSubmission, setStoryChains]);
+  }, [convertBlockchainStory, setStoryChains]);
 
   /**
    * Fetch current round data for a story

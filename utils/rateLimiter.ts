@@ -146,14 +146,34 @@ const stacksRateLimiter = new RateLimiter({
   windowMs: 60 * 1000, // 1 minute
 });
 
+// Request deduplication cache
+const requestCache = new Map<string, Promise<any>>();
+
 /**
- * Wrap Stacks API call with rate limiting
+ * Wrap Stacks API call with rate limiting and deduplication
  */
 export async function withRateLimit<T>(
   key: string,
   fn: () => Promise<T>
 ): Promise<T> {
-  return stacksRateLimiter.execute(key, fn);
+  // Check if request is already in progress
+  if (requestCache.has(key)) {
+    console.log(`🔄 Deduplicating request: ${key}`);
+    return requestCache.get(key);
+  }
+
+  // Create new request
+  const requestPromise = stacksRateLimiter.execute(key, fn);
+
+  // Cache the promise
+  requestCache.set(key, requestPromise);
+
+  // Clean up cache when request completes
+  requestPromise.finally(() => {
+    requestCache.delete(key);
+  });
+
+  return requestPromise;
 }
 
 /**
