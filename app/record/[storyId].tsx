@@ -185,7 +185,9 @@ export default function RecordScreen() {
 
     try {
       // Step 1: Validate submission conditions
+      // NOTE: Story creators ARE allowed to contribute to their own stories!
       console.log('🔍 Validating submission conditions...');
+      console.log('✅ Creators can submit voice blocks to their own stories');
 
       // Check if storyId is present and fetch blockchain data
       let blockchainStory: any = null;

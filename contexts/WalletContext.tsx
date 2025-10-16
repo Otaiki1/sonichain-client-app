@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { generateSecretKey, generateWallet, Wallet } from '@stacks/wallet-sdk';
 import { getAddressFromPrivateKey } from '@stacks/transactions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CONTRACT_CONFIG } from '@/lib/contract-config';
 
 interface WalletContextType {
   wallet: Wallet | null;
@@ -40,10 +41,19 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
         setWallet(restoredWallet);
         setMnemonic(storedMnemonic.trim());
 
+        // Generate TESTNET address (ST...) instead of mainnet (SP...)
+        // Use the network's transactionVersion from CONTRACT_CONFIG with fallback
+        const transactionVersion =
+          CONTRACT_CONFIG.NETWORK.transactionVersion || 128;
+        console.log('🔧 Using transactionVersion:', transactionVersion);
+
         const walletAddress = getAddressFromPrivateKey(
-          restoredWallet.accounts[0].stxPrivateKey
+          restoredWallet.accounts[0].stxPrivateKey,
+          'testnet' // 128 for testnet (generates ST addresses)
         );
         setAddress(walletAddress);
+
+        console.log('✅ Testnet wallet loaded:', walletAddress);
       }
     } catch (error) {
       console.error('Failed to load wallet:', error);
@@ -65,11 +75,19 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
       });
       setWallet(newWallet);
 
-      // Get address (using testnet)
+      // Get TESTNET address (ST...) instead of mainnet (SP...)
+      // Use the network's transactionVersion from CONTRACT_CONFIG with fallback
+      const transactionVersion =
+        CONTRACT_CONFIG.NETWORK.transactionVersion || 128;
+      console.log('🔧 Using transactionVersion:', transactionVersion);
+
       const walletAddress = getAddressFromPrivateKey(
-        newWallet.accounts[0].stxPrivateKey
+        newWallet.accounts[0].stxPrivateKey,
+        'testnet' // 128 for testnet (generates ST addresses)
       );
       setAddress(walletAddress);
+
+      console.log('✅ New testnet wallet created:', walletAddress);
 
       // Store mnemonic securely
       await AsyncStorage.setItem('walletMnemonic', newMnemonic);
@@ -89,11 +107,19 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
       setWallet(restoredWallet);
       setMnemonic(inputMnemonic.trim());
 
-      // Get address
+      // Get TESTNET address (ST...) instead of mainnet (SP...)
+      // Use the network's transactionVersion from CONTRACT_CONFIG with fallback
+      const transactionVersion =
+        CONTRACT_CONFIG.NETWORK.transactionVersion || 128;
+      console.log('🔧 Using transactionVersion:', transactionVersion);
+
       const walletAddress = getAddressFromPrivateKey(
-        restoredWallet.accounts[0].stxPrivateKey
+        restoredWallet.accounts[0].stxPrivateKey,
+        'testnet' // 128 for testnet (generates ST addresses)
       );
       setAddress(walletAddress);
+
+      console.log('✅ Testnet wallet restored:', walletAddress);
 
       // Store mnemonic
       await AsyncStorage.setItem('walletMnemonic', inputMnemonic.trim());

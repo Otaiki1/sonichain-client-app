@@ -15,6 +15,26 @@ import { CONTRACT_CONFIG } from '@/lib/contract-config';
 import * as ContractUtils from '@/lib/contract-utils';
 
 /**
+ * ⚠️ BLOCKCHAIN DATA STRUCTURE NOTE:
+ *
+ * Data returned from Clarity smart contracts has a nested structure:
+ * {
+ *   "type": "(tuple ...)",
+ *   "value": {
+ *     "field-name": { "type": "uint", "value": "7" },
+ *     "another-field": { "type": "bool", "value": false }
+ *   }
+ * }
+ *
+ * To extract values safely, use this pattern:
+ *   const fieldValue = data.value?.['field-name']?.value ??
+ *                     data['field-name']?.value ??
+ *                     data['field-name'];
+ *
+ * This handles both nested and flat structures with proper fallbacks.
+ */
+
+/**
  * Custom hook for Sonichain contract interactions
  * Provides wallet connection state and contract call functions
  *
@@ -53,6 +73,10 @@ export function useContract() {
     setIsProcessing(true);
 
     try {
+      console.log('📤 Starting contract call:', functionName);
+      console.log('📤 Function arguments:', functionArgs);
+      console.log('📤 Sender address:', address);
+
       // Build transaction
       const txOptions = {
         contractAddress: CONTRACT_CONFIG.CONTRACT_ADDRESS,
@@ -75,11 +99,29 @@ export function useContract() {
       });
 
       if ('error' in broadcastResponse) {
-        throw new Error(broadcastResponse.error);
+        console.error('❌ Broadcast error:', broadcastResponse.error);
+        console.error(
+          '❌ Full response:',
+          JSON.stringify(broadcastResponse, null, 2)
+        );
+
+        // Provide more helpful error messages
+        let errorMessage = broadcastResponse.error;
+        if (errorMessage.includes('rejected')) {
+          errorMessage =
+            'Transaction was rejected by the network. This might be due to:\n\n• Contract function validation failed\n• Insufficient STX balance for fees\n• Invalid parameters\n• Story may be sealed or in wrong state\n\nCheck console logs for details.';
+        } else if (errorMessage.includes('ConflictingNonceInMempool')) {
+          errorMessage =
+            'A transaction is already pending. Please wait a moment and try again.';
+        } else if (errorMessage.includes('BadNonce')) {
+          errorMessage = 'Nonce error. Please try again in a few moments.';
+        }
+
+        throw new Error(errorMessage);
       }
 
       const txId = broadcastResponse.txid;
-      console.log('Transaction broadcast successfully:', txId);
+      console.log('✅ Transaction broadcast successfully:', txId);
 
       if (onSuccess) {
         onSuccess(txId);
@@ -91,7 +133,10 @@ export function useContract() {
       );
       return txId;
     } catch (error: any) {
-      console.error('Contract call failed:', error);
+      console.error('❌ Contract call failed:', error);
+      console.error('❌ Function:', functionName);
+      console.error('❌ Args:', functionArgs);
+
       Alert.alert(
         'Transaction Failed',
         error.message || 'Unknown error occurred'
@@ -238,6 +283,36 @@ export function useContract() {
     uri: string,
     now?: number
   ) {
+    // Pre-flight validation checks
+    console.log('🔍 Pre-flight validation for story:', storyId);
+
+    try {
+      // Check if story exists and is in correct state
+      const story = await fetchStory(storyId);
+      if (!story) {
+        Alert.alert('Error', 'Story not found on blockchain');
+        return null;
+      }
+
+      // Check if story is sealed - extract from nested structure
+      const isSealed =
+        story.value?.['is-sealed']?.value ??
+        story['is-sealed']?.value ??
+        story['is-sealed'];
+      if (isSealed) {
+        Alert.alert(
+          'Story Sealed',
+          'This story has been sealed and is no longer accepting submissions.'
+        );
+        return null;
+      }
+
+      console.log('✅ Pre-flight validation passed');
+    } catch (error) {
+      console.error('⚠️ Pre-flight validation error:', error);
+      // Continue anyway, let the contract reject if needed
+    }
+
     // Default to current Unix timestamp (in seconds) if not provided
     const timestamp = now || Math.floor(Date.now() / 1000);
 
@@ -247,7 +322,7 @@ export function useContract() {
       txOptions.functionName,
       txOptions.functionArgs,
       (txId) => {
-        console.log('Voice block submitted:', txId);
+        console.log('✅ Voice block submitted:', txId);
       }
     );
   }
@@ -285,6 +360,44 @@ export function useContract() {
   ) {
     // Default to current Unix timestamp (in seconds) if not provided
     const timestamp = now || Math.floor(Date.now() / 1000);
+    //get round data from blockchain
+    const roundData = await fetchRound(storyId, roundNum);
+    if (!roundData) {
+      Alert.alert('Error', 'Round not found on blockchain');
+      return null;
+    }
+
+    // Extract is-finalized from nested structure
+    const isFinalized =
+      roundData.value?.['is-finalized']?.value ??
+      roundData['is-finalized']?.value ??
+      roundData['is-finalized'];
+
+    if (isFinalized) {
+      Alert.alert('Error', 'Round already finalized');
+      return null;
+    }
+
+    console.log(
+      'round data============>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>',
+      roundData
+    );
+
+    // // Extract round-id from nested structure: roundData.value['round-id'].value
+    // const roundId =
+    //   roundData.value?.['round-id']?.value ??
+    //   roundData['round-id']?.value ??
+    //   roundData['round-id'];
+
+    // if (!roundId) {
+    //   Alert.alert('Error', 'Round ID not found');
+    //   return null;
+    // }
+
+    // console.log(
+    //   'round id============>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>',
+    //   roundId
+    // );
 
     const txOptions = await ContractUtils.finalizeRound(
       storyId,

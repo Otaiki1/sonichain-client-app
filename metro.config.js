@@ -8,4 +8,14 @@ config.resolver.extraNodeModules = {
   crypto: require.resolve('crypto-browserify'),
 };
 
+// Disable watchman and use node file watcher to avoid FSEvents issues
+config.watcher = {
+  watchman: {
+    deferStates: [],
+  },
+  healthCheck: {
+    enabled: false,
+  },
+};
+
 module.exports = withNativeWind(config, { input: './global.css' });

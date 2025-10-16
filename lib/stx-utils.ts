@@ -7,11 +7,15 @@ import { CONTRACT_CONFIG } from './contract-config';
  */
 /**
  * Get API URL from network
+ * Returns testnet or mainnet API URL based on CONTRACT_CONFIG.NETWORK
  */
 function getApiUrl(): string {
   const network = CONTRACT_CONFIG.NETWORK;
   // @ts-ignore - coreApiUrl exists but TypeScript definition may be outdated
-  return network.coreApiUrl || 'https://api.testnet.hiro.so';
+  const apiUrl = network.coreApiUrl || 'https://api.testnet.hiro.so';
+
+  console.log('🌐 Using Stacks API:', apiUrl);
+  return apiUrl;
 }
 
 /**
@@ -23,16 +27,26 @@ export async function getStxBalance(address: string): Promise<number> {
   try {
     const apiUrl = getApiUrl();
 
+    console.log(`💰 Fetching balance for ${address} from ${apiUrl}`);
+
     const response = await fetch(
       `${apiUrl}/extended/v1/address/${address}/balances`
     );
 
     if (!response.ok) {
-      throw new Error('Failed to fetch balance');
+      throw new Error(
+        `Failed to fetch balance: ${response.status} ${response.statusText}`
+      );
     }
 
     const data = await response.json();
-    return parseInt(data.stx.balance);
+    const balance = parseInt(data.stx.balance);
+
+    console.log(
+      `✅ Balance fetched: ${balance} microSTX (${balance / 1_000_000} STX)`
+    );
+
+    return balance;
   } catch (error) {
     console.error('Error fetching STX balance:', error);
     return 0;

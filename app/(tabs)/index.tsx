@@ -87,7 +87,7 @@ export default function HomeScreen() {
   const [selectedEmoji, setSelectedEmoji] = useState('✨');
   const [maxBlocks, setMaxBlocks] = useState('10');
   const [bountyStx, setBountyStx] = useState('');
-  const [votingWindowHours, setVotingWindowHours] = useState('24');
+  const [votingWindowMinutes, setVotingWindowMinutes] = useState('60');
   const [showResultModal, setShowResultModal] = useState(false);
   const [resultData, setResultData] = useState<{
     success: boolean;
@@ -129,6 +129,10 @@ export default function HomeScreen() {
     }
 
     try {
+      // Convert minutes to seconds for blockchain
+      const votingWindowMinutesValue = parseInt(votingWindowMinutes) || 60;
+      const votingWindowSeconds = votingWindowMinutesValue * 60;
+
       // Create story metadata for IPFS
       const storyMetadata = {
         storyId: Date.now().toString(), // Temporary ID for metadata
@@ -139,7 +143,7 @@ export default function HomeScreen() {
         coverArt: selectedEmoji,
         maxBlocks: parseInt(maxBlocks) || 10,
         bountyStx: bountyStx ? parseFloat(bountyStx) : 0,
-        votingWindowHours: parseInt(votingWindowHours) || 24,
+        votingWindowMinutes: votingWindowMinutesValue,
         creatorUsername: user.username,
         creatorAddress: user.walletAddress,
         createdAt: new Date().toISOString(),
@@ -161,7 +165,12 @@ export default function HomeScreen() {
       }
 
       // Create story on blockchain using IPFS hash as prompt
-      const blockchainStoryId = await createStoryOnChain(ipfsResult.cid);
+      // Pass current timestamp and voting window in SECONDS
+      const blockchainStoryId = await createStoryOnChain(
+        ipfsResult.cid,
+        Math.floor(Date.now() / 1000), // current time in seconds
+        votingWindowSeconds // voting window in seconds
+      );
 
       if (!blockchainStoryId) {
         Alert.alert(
@@ -183,7 +192,7 @@ export default function HomeScreen() {
         category: selectedCategory,
         totalDuration: 0,
         bountyStx: bountyStx ? parseFloat(bountyStx) : undefined,
-        votingWindowHours: parseInt(votingWindowHours) || 24,
+        votingWindowHours: votingWindowMinutesValue / 60, // Convert back to hours for display
         creatorUsername: user.username,
         nftMinted: false,
         metadataCid: ipfsResult.cid, // Store IPFS hash
@@ -207,7 +216,7 @@ export default function HomeScreen() {
       setSelectedEmoji('✨');
       setMaxBlocks('10');
       setBountyStx('');
-      setVotingWindowHours('24');
+      setVotingWindowMinutes('60');
 
       // Close create modal
       setShowCreateModal(false);
@@ -244,7 +253,7 @@ export default function HomeScreen() {
     setSelectedEmoji('✨');
     setMaxBlocks('10');
     setBountyStx('');
-    setVotingWindowHours('24');
+    setVotingWindowMinutes('60');
   };
   useEffect(() => {
     fetchAllStories().then((stories) => {
@@ -314,9 +323,11 @@ export default function HomeScreen() {
               : 'Create the first collaborative voice story on the blockchain!'}
           </Text>
           {!searchQuery && (
-            <GameButton onPress={handleCreateStory} className="mt-md">
-              Create First Story
-            </GameButton>
+            <GameButton
+              title="Create First Story"
+              onPress={handleCreateStory}
+              className="mt-md"
+            />
           )}
         </View>
       ) : (
@@ -470,19 +481,19 @@ export default function HomeScreen() {
               {/* Voting Window */}
               <View className="mb-lg">
                 <Text className="text-body text-text-primary font-semibold mb-sm">
-                  Voting Window (Hours)
+                  Voting Window (Minutes)
                 </Text>
                 <TextInput
                   className="bg-background rounded-md px-md py-md text-text-primary text-base border border-border"
-                  placeholder="24"
+                  placeholder="60"
                   placeholderTextColor="#D4A5B8"
-                  value={votingWindowHours}
-                  onChangeText={setVotingWindowHours}
+                  value={votingWindowMinutes}
+                  onChangeText={setVotingWindowMinutes}
                   keyboardType="number-pad"
                 />
                 <Text className="text-caption text-text-secondary mt-xs">
                   Time allowed for community to vote on each voice block
-                  submission
+                  submission (converted to seconds on blockchain)
                 </Text>
               </View>
 

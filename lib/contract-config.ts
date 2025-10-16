@@ -10,10 +10,10 @@ export const CONTRACT_CONFIG = {
   BLOCKCHAIN_ENABLED: true, // ✅ PRODUCTION: Blockchain enabled
   // Contract address (CRITICAL: Update with your deployed contract address!)
   // This must match your deployed Sonichain contract on Stacks testnet/mainnet
-  CONTRACT_ADDRESS: 'ST1C0X7WZMGH6RAG3AG68R28XRSAW5XE321AQ0PXE',
+  CONTRACT_ADDRESS: 'ST1ZZC9D5Q6Q8HZXYA98V9KJB385HYPSB80G2R0Q3',
 
   // Contract name (must match deployed contract)
-  CONTRACT_NAME: 'Sonichains',
+  CONTRACT_NAME: 'Sonichain',
 
   // Network configuration (switch to STACKS_MAINNET for production)
   NETWORK: STACKS_TESTNET,
@@ -33,10 +33,10 @@ export const CONTRACT_CONFIG = {
   PLATFORM_FEE_BPS: 250, // 2.5% platform fee
 
   // NFT Contract Configuration
-  NFT_CONTRACT_ADDRESS: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
+  NFT_CONTRACT_ADDRESS: 'ST1ZZC9D5Q6Q8HZXYA98V9KJB385HYPSB80G2R0Q3',
   NFT_CONTRACT_NAME: 'Soni_NFT',
   NFT_TRAIT_CONTRACT:
-    'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.Soni_NFT_Trait',
+    'ST1ZZC9D5Q6Q8HZXYA98V9KJB385HYPSB80G2R0Q3.Soni_NFT_Trait',
 };
 
 /**

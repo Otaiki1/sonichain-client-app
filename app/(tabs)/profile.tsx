@@ -150,6 +150,27 @@ export default function ProfileScreen() {
     story.blocks.some((block) => block.username === user.username)
   );
 
+  // Filter stories created by current user (by blockchain address)
+  const createdStories = storyChains.filter((story) => {
+    // Compare creator address from blockchain with current user's address
+    const creator = story.creator?.value || story.creator || '';
+    const isMatch = creator === address;
+
+    console.log('🔍 Checking story:', {
+      storyId: story.id,
+      storyTitle: story.title,
+      creator: creator,
+      currentAddress: address,
+      isMatch: isMatch,
+    });
+
+    return isMatch;
+  });
+
+  console.log('👑 Total created stories:', createdStories.length);
+  console.log('📚 Total stories in store:', storyChains.length);
+  console.log('🎤 Current user address:', address);
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <BackgroundPulse />
@@ -314,8 +335,84 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* My Created Stories */}
         <View className="px-lg mb-xl">
-          <Text className="text-h2 text-text-primary mb-md">My Chains</Text>
+          <View className="flex-row items-center mb-md">
+            <Text className="text-2xl mr-sm">👑</Text>
+            <Text className="text-h2 text-text-primary">
+              My Created Stories ({createdStories.length})
+            </Text>
+          </View>
+          {createdStories.length === 0 ? (
+            <View className="bg-card rounded-lg p-xl items-center border border-border">
+              <Text className="text-4xl mb-md">✨</Text>
+              <Text className="text-body text-text-primary font-semibold mb-xs">
+                No stories created yet
+              </Text>
+              <Text className="text-caption text-text-secondary text-center">
+                Create your first story to manage rounds and rewards
+              </Text>
+            </View>
+          ) : (
+            createdStories.map((story) => (
+              <TouchableOpacity
+                key={story.id}
+                className="bg-gradient-to-r from-accent/20 to-primary/20 rounded-lg p-md mb-md border-2 border-accent/50"
+                onPress={() => router.push(`/story/${story.id}`)}
+              >
+                <View className="flex-row items-center mb-sm">
+                  <Text className="text-3xl mr-md">{story.coverArt}</Text>
+                  <View className="flex-1">
+                    <View className="flex-row items-center mb-xs">
+                      <Text className="text-body text-text-primary font-bold">
+                        {story.title}
+                      </Text>
+                      <View className="bg-accent/30 px-sm py-0.5 rounded ml-sm">
+                        <Text className="text-small text-accent font-bold">
+                          CREATOR
+                        </Text>
+                      </View>
+                    </View>
+                    <Text className="text-caption text-text-secondary">
+                      {story.blocks.length} blocks • Round{' '}
+                      {story.currentRound || 1}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Story Status */}
+                <View className="flex-row gap-sm">
+                  {story.status === 'sealed' ? (
+                    <View className="flex-1 bg-secondary/30 rounded px-sm py-xs">
+                      <Text className="text-small text-secondary font-semibold text-center">
+                        🔒 Sealed
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      <View className="flex-1 bg-accent/30 rounded px-sm py-xs">
+                        <Text className="text-small text-accent font-semibold text-center">
+                          ⚡ Active
+                        </Text>
+                      </View>
+                      <View className="flex-1 bg-primary/30 rounded px-sm py-xs">
+                        <Text className="text-small text-primary font-semibold text-center">
+                          Tap to Manage
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+
+        {/* My Contributions */}
+        <View className="px-lg mb-xl">
+          <Text className="text-h2 text-text-primary mb-md">
+            My Contributions
+          </Text>
           {contributedStories.length === 0 ? (
             <View className="items-center py-xl">
               <Text className="text-body text-text-secondary mb-xs">
