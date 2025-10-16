@@ -13,9 +13,18 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Mic, Link, Award } from 'lucide-react-native';
+import {
+  Mic,
+  Link as LinkIcon,
+  Award,
+  ExternalLink,
+  Copy,
+  AlertCircle,
+} from 'lucide-react-native';
 import { Button } from '../components/Button';
 import { useAppStore } from '../store/useAppStore';
 import { useWallet } from '../contexts/WalletContext';
@@ -33,7 +42,7 @@ const slides = [
   },
   {
     id: '2',
-    icon: Link,
+    icon: LinkIcon,
     title: 'Chain Stories Together',
     description:
       'Each voice memo becomes a new block in a collaborative story chain',
@@ -45,6 +54,8 @@ const slides = [
     description: 'Gain XP, unlock badges, and level up as you create and vote',
   },
 ];
+
+const FAUCET_URL = 'https://learnweb3.io/faucets/stacks/';
 
 export default function OnboardingScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -63,7 +74,8 @@ export default function OnboardingScreen() {
 
   const isAuthSlide = currentIndex === slides.length;
   const isWalletSlide = currentIndex === slides.length + 1;
-  const isUsernameSlide = currentIndex === slides.length + 2;
+  const isFundingSlide = currentIndex === slides.length + 2;
+  const isUsernameSlide = currentIndex === slides.length + 3;
 
   const handleNext = () => {
     if (currentIndex < slides.length) {
@@ -121,7 +133,7 @@ export default function OnboardingScreen() {
       setLoadingMessage('Almost there...');
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // Move to username slide
+      // Move to funding instruction slide
       flatListRef.current?.scrollToIndex({ index: slides.length + 2 });
       setCurrentIndex(slides.length + 2);
     } catch (error) {
@@ -318,6 +330,21 @@ export default function OnboardingScreen() {
           </View>
         )}
 
+        {/* Funding Notice - Always shown */}
+        <View className="bg-accent/20 rounded-lg p-md mb-lg border-2 border-accent/50">
+          <View className="flex-row items-center mb-xs">
+            <AlertCircle size={20} color="#00FFFF" className="mr-sm" />
+            <Text className="text-body text-accent font-semibold">
+              ⚠️ Funding Required
+            </Text>
+          </View>
+          <Text className="text-caption text-text-secondary leading-5">
+            After creating your wallet, you'll need to add testnet STX tokens to
+            pay for blockchain transaction fees. Don't worry - we'll show you
+            exactly how to get free testnet tokens!
+          </Text>
+        </View>
+
         <Button
           title={isCreatingAccount ? 'Generate Wallet' : 'Restore Wallet'}
           onPress={handleWalletNext}
@@ -329,6 +356,151 @@ export default function OnboardingScreen() {
       </View>
     </ScrollView>
   );
+
+  const renderFundingSlide = () => {
+    const handleCopyAddress = () => {
+      if (address) {
+        Alert.alert('Your Wallet Address', address, [
+          { text: 'OK', style: 'default' },
+        ]);
+      }
+    };
+
+    const handleOpenFaucet = async () => {
+      try {
+        await Linking.openURL(FAUCET_URL);
+      } catch (error) {
+        Alert.alert(
+          'Error',
+          'Could not open browser. Please visit: ' + FAUCET_URL
+        );
+      }
+    };
+
+    return (
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+        style={{ width }}
+      >
+        <View className="flex-1 justify-center px-xl py-xl">
+          <View className="items-center mb-xl">
+            <View className="w-24 h-24 rounded-full bg-accent/20 justify-center items-center mb-md border-2 border-accent">
+              <Text className="text-6xl">💰</Text>
+            </View>
+            <Text className="text-h1 text-text-primary text-center mb-md">
+              Fund Your Wallet
+            </Text>
+            <Text className="text-body text-text-secondary text-center leading-6">
+              Before you can use SoniChain, you need to add testnet STX tokens
+              to your wallet to pay for transaction fees
+            </Text>
+          </View>
+
+          {/* Wallet Address Card */}
+          {address && (
+            <TouchableOpacity
+              onPress={handleCopyAddress}
+              className="mb-lg bg-card rounded-xl p-md border-2 border-primary"
+              activeOpacity={0.7}
+            >
+              <View className="flex-row items-center justify-between mb-sm">
+                <Text className="text-body text-text-primary font-semibold">
+                  Your Wallet Address
+                </Text>
+                <Copy size={20} color="#00FFFF" />
+              </View>
+              <Text
+                className="text-small text-text-secondary font-mono leading-5"
+                numberOfLines={1}
+              >
+                {address}
+              </Text>
+              <Text className="text-caption text-accent mt-xs">
+                Tap to view full address
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Instructions */}
+          <View className="bg-accent/10 rounded-xl p-md mb-lg border border-accent/30">
+            <Text className="text-body text-accent font-semibold mb-md">
+              📋 How to Get Free Testnet STX
+            </Text>
+
+            <View className="gap-md">
+              <View className="flex-row">
+                <Text className="text-body text-accent font-bold mr-sm">
+                  1.
+                </Text>
+                <Text className="text-caption text-text-secondary flex-1 leading-5">
+                  Copy your wallet address above
+                </Text>
+              </View>
+
+              <View className="flex-row">
+                <Text className="text-body text-accent font-bold mr-sm">
+                  2.
+                </Text>
+                <Text className="text-caption text-text-secondary flex-1 leading-5">
+                  Tap "Get Free Tokens" button below
+                </Text>
+              </View>
+
+              <View className="flex-row">
+                <Text className="text-body text-accent font-bold mr-sm">
+                  3.
+                </Text>
+                <Text className="text-caption text-text-secondary flex-1 leading-5">
+                  Paste your address and request 500 STX tokens
+                </Text>
+              </View>
+
+              <View className="flex-row">
+                <Text className="text-body text-accent font-bold mr-sm">
+                  4.
+                </Text>
+                <Text className="text-caption text-text-secondary flex-1 leading-5">
+                  Come back here and tap "Continue"
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Requirements Box */}
+          <View className="bg-secondary/20 rounded-lg p-md mb-lg border border-secondary/30">
+            <Text className="text-body text-text-primary font-semibold mb-xs">
+              💡 What You Need
+            </Text>
+            <Text className="text-caption text-text-secondary leading-5">
+              • Minimum: 1 STX (for ~10 transactions){'\n'}• Recommended: 10 STX
+              (comfortable buffer){'\n'}• Faucet gives: 500 STX (plenty for
+              testing)
+            </Text>
+          </View>
+
+          {/* Faucet Button */}
+          <TouchableOpacity
+            onPress={handleOpenFaucet}
+            className="bg-accent rounded-lg p-md mb-md flex-row items-center justify-center"
+            activeOpacity={0.8}
+          >
+            <ExternalLink size={20} color="#1A0E14" className="mr-sm" />
+            <Text className="text-body text-background font-bold">
+              Get Free Testnet Tokens
+            </Text>
+          </TouchableOpacity>
+
+          {/* Skip Warning */}
+          <View className="bg-error/20 rounded-lg p-sm border border-error/30">
+            <Text className="text-caption text-error text-center leading-5">
+              ⚠️ Without tokens, you won't be able to create stories, vote, or
+              submit contributions
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  };
 
   const renderUsernameSlide = () => (
     <View
@@ -377,10 +549,17 @@ export default function OnboardingScreen() {
     >
       <FlatList
         ref={flatListRef}
-        data={[...slides, { id: 'auth' }, { id: 'wallet' }, { id: 'username' }]}
+        data={[
+          ...slides,
+          { id: 'auth' },
+          { id: 'wallet' },
+          { id: 'funding' },
+          { id: 'username' },
+        ]}
         renderItem={({ item }) => {
           if (item.id === 'auth') return renderAuthSlide();
           if (item.id === 'wallet') return renderWalletSlide();
+          if (item.id === 'funding') return renderFundingSlide();
           if (item.id === 'username') return renderUsernameSlide();
           return renderSlide({ item: item as any });
         }}
@@ -398,6 +577,7 @@ export default function OnboardingScreen() {
             ...slides,
             { id: 'auth' },
             { id: 'wallet' },
+            { id: 'funding' },
             { id: 'username' },
           ].map((_, index) => (
             <View
@@ -415,6 +595,16 @@ export default function OnboardingScreen() {
             onPress={handleGetStarted}
             disabled={!username.trim() || isRegisteringUser}
             loading={isRegisteringUser}
+            size="large"
+            className="w-full"
+          />
+        ) : isFundingSlide ? (
+          <Button
+            title="Continue to Username"
+            onPress={() => {
+              flatListRef.current?.scrollToIndex({ index: slides.length + 3 });
+              setCurrentIndex(slides.length + 3);
+            }}
             size="large"
             className="w-full"
           />

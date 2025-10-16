@@ -50,8 +50,11 @@ Imagine a world where stories aren't written by a single author, but **co-create
 
 1. **Download & Install** - Get the app from your app store
 2. **Create Wallet** - Set up your Stacks wallet (automatic)
-3. **Choose Username** - Pick your storyteller identity
-4. **Start Exploring** - Browse active stories or create your own
+3. **⚠️ Fund Your Wallet** - Add testnet STX tokens to cover transaction fees (see setup guide below)
+4. **Choose Username** - Pick your storyteller identity
+5. **Start Exploring** - Browse active stories or create your own
+
+> **💡 Important**: You'll need a small amount of STX tokens in your wallet to pay for blockchain transaction fees when creating stories, voting, or submitting contributions. See the [Wallet Setup](#wallet-setup--funding) section below for instructions on getting testnet STX.
 
 #### **Contributing to Stories:**
 
@@ -142,6 +145,9 @@ SoniChain represents the **next evolution** of storytelling:
 - [Data Models](#data-models)
 - [Blockchain Integration](#blockchain-integration-stacks)
 - [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Wallet Setup & Funding](#wallet-setup--funding) ⚠️ **Important**
+  - [Installation](#installation)
 - [Development Workflow](#development-workflow)
 - [Coding Conventions](#coding-conventions)
 
@@ -466,6 +472,91 @@ Two main tabs (defined in `app/(tabs)/_layout.tsx`):
 - npm or yarn
 - Expo CLI (`npm install -g expo-cli`)
 - iOS Simulator (Mac) or Android Emulator
+
+### Wallet Setup & Funding
+
+**⚠️ IMPORTANT: Before using the app, you must have STX tokens in your wallet!**
+
+SoniChain requires STX tokens to pay for blockchain transaction fees. Without tokens, you won't be able to:
+
+- Create new stories
+- Submit voice contributions
+- Vote on submissions
+- Finalize rounds (for creators)
+- Seal stories (for creators)
+
+#### Getting Testnet STX Tokens
+
+Since SoniChain runs on **Stacks Testnet**, you'll need testnet STX tokens (not real money):
+
+**Method 1: LearnWeb3 Stacks Faucet (Recommended)**
+
+> **💡 Pro Tip**: The app has a built-in funding guide! After creating your wallet, you'll see a funding screen with direct links to the faucet.
+
+1. **Get Your Wallet Address**:
+
+   - Open the app and create/restore your wallet
+   - The funding screen will show your wallet address automatically
+   - Or go to Profile tab to view it later
+
+2. **Request Testnet Tokens**:
+
+   - Visit the [LearnWeb3 Stacks Faucet](https://learnweb3.io/faucets/stacks/)
+   - Paste your wallet address (ST...)
+   - Click "Request STX"
+   - You'll receive 500 testnet STX tokens instantly
+
+3. **Verify Balance**:
+   - Check your balance in the app Profile tab
+   - Or visit [Stacks Explorer](https://explorer.hiro.so/?chain=testnet) and search your address
+
+**Method 2: Hiro Explorer Faucet (Alternative)**
+
+1. Visit the [Hiro Testnet Faucet](https://explorer.hiro.so/sandbox/faucet?chain=testnet)
+2. Enter your wallet address
+3. Request tokens
+
+**Method 3: Hiro Wallet Web Extension**
+
+1. Install [Hiro Wallet](https://wallet.hiro.so/) browser extension
+2. Create a new testnet wallet
+3. Use the built-in faucet to request tokens
+4. Import the wallet seed phrase into the app
+
+#### How Much Do You Need?
+
+- **Minimum**: 1 STX (enough for ~10-20 transactions)
+- **Recommended**: 10 STX (comfortable buffer for testing)
+- **Faucet gives**: 500 STX (plenty for extensive testing)
+
+#### Transaction Costs
+
+Approximate fees per action:
+
+- Create story: ~0.1 STX
+- Submit voice block: ~0.1 STX
+- Vote on submission: ~0.05 STX
+- Finalize round: ~0.1 STX
+- Seal story: ~0.1 STX
+
+#### Troubleshooting
+
+**"Transaction rejected" error?**
+
+- Check your wallet balance in Profile tab
+- Make sure you have at least 0.5 STX available
+- Fees can vary based on network congestion
+
+**Need more tokens?**
+
+- You can request from the faucet multiple times
+- Wait 24 hours between requests
+- Join our Discord for help getting testnet STX
+
+**Moving to Mainnet?**
+When ready for production, you'll need real STX tokens from exchanges like Binance, OKX, or Kraken.
+
+---
 
 ### Installation
 

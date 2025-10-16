@@ -69,7 +69,7 @@ const COVER_EMOJIS = [
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { addStoryChain, user, updateUser } = useAppStore();
+  const { addStoryChain, user, updateUser, storyChains } = useAppStore();
   const { uploadMetadata, isUploading, getPinataUrl } = usePinata();
   const { createStoryOnChain, isProcessing } = useContract();
   const {
@@ -94,7 +94,6 @@ export default function HomeScreen() {
     message: string;
     txId?: string;
   } | null>(null);
-  const [appStories, setAppStories] = useState<StoryChain[]>([]);
   // Enable real-time updates for stories (refresh every 5 minutes to avoid rate limits)
   useRealTimeUpdates({
     enabled: false, // Disabled to prevent rate limiting - use manual refresh instead
@@ -103,6 +102,13 @@ export default function HomeScreen() {
       await refreshAllStories();
     },
   });
+
+  // Custom refresh handler that ensures fresh blockchain data
+  const handleRefresh = async () => {
+    console.log('🔄 Manual refresh triggered - fetching fresh blockchain data');
+    await refreshAllStories();
+    console.log('✅ Refresh complete - stories updated from blockchain');
+  };
 
   const filterStories = (stories: StoryChain[]) => {
     return stories.filter(
@@ -254,10 +260,11 @@ export default function HomeScreen() {
     setBountyStx('');
     setVotingWindowMinutes('60');
   };
+
+  // Fetch fresh stories on mount
   useEffect(() => {
-    fetchAllStories().then((stories) => {
-      setAppStories(stories);
-    });
+    console.log('📚 Initial load - fetching stories from blockchain');
+    fetchAllStories();
   }, []);
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -289,7 +296,7 @@ export default function HomeScreen() {
         <View className="flex-row items-center">
           <TouchableOpacity
             className="items-center justify-center w-10 h-10 rounded-md mr-sm"
-            onPress={refreshAllStories}
+            onPress={handleRefresh}
             disabled={isRefreshing}
           >
             {isRefreshing ? (
@@ -310,7 +317,7 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {filterStories(appStories).length === 0 ? (
+      {filterStories(storyChains).length === 0 ? (
         <View className="flex-1 items-center justify-center px-lg">
           <Text className="text-6xl mb-lg">📚</Text>
           <Text className="text-h2 text-text-primary mb-sm text-center">
@@ -331,7 +338,7 @@ export default function HomeScreen() {
         </View>
       ) : (
         <FlatList
-          data={appStories}
+          data={filterStories(storyChains)}
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
             <AnimatedStoryCard
