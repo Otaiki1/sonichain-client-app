@@ -73,14 +73,11 @@ export default function StoryDetailScreen() {
       if (!id) return;
       setIsLoading(true);
       try {
-        // Prefer local story if present
-        let storyData = localStory || undefined;
-
-        // If still no story, fetch from blockchain
-        if (!storyData) {
-          const blockchainStory = await fetchStoryFromBlockchain(Number(id));
-          storyData = blockchainStory || undefined;
-        }
+        // Always fetch fresh story data from blockchain for accurate timing
+        // Local story might have stale current-round and total-blocks data
+        console.log('🔄 Fetching fresh story data from blockchain...');
+        const blockchainStory = await fetchStoryFromBlockchain(Number(id));
+        const storyData = blockchainStory || localStory || undefined;
 
         if (storyData) {
           setStory(storyData);
@@ -107,9 +104,11 @@ export default function StoryDetailScreen() {
           );
           if (roundData) {
             setCurrentRound(roundData);
+            // Pass the actual round number (roundNum) as third parameter
             const timingData = extractRoundTimingData(
               roundData.round,
-              storyData
+              storyData,
+              Number(roundNum)
             );
             setRoundTimingData(timingData);
 

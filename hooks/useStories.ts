@@ -184,6 +184,17 @@ export function useStories() {
    *
    * IMPORTANT: submission-id is NOT in the returned data from get-submission
    * It's the key used to fetch the data, so we need to pass it separately
+   *
+   * ⚠️ BLOCKCHAIN DATA STRUCTURE:
+   * Submissions come nested as:
+   * {
+   *   type: "(tuple ...)",
+   *   value: {
+   *     uri: { type: "(string-ascii 55)", value: "uploads/xxx.m4a" },
+   *     contributor: { type: "principal", value: "ST..." },
+   *     ...
+   *   }
+   * }
    */
   const convertBlockchainSubmission = useCallback(
     (submission: any, submissionId?: number): VoiceBlock => {
@@ -200,21 +211,32 @@ export function useStories() {
       // NOTE: submission-id is NOT included - it's the map key!
 
       // Extract values from nested blockchain response structure
+      // Pattern: data.value?.field?.value ?? data.field?.value ?? data.field
       const contributor =
-        submission.contributor?.value || submission.contributor;
-      const uri = submission.uri?.value || submission.uri;
+        submission.value?.contributor?.value ??
+        submission.contributor?.value ??
+        submission.contributor;
+      const uri =
+        submission.value?.uri?.value ?? submission.uri?.value ?? submission.uri;
       const submittedAt =
-        submission['submitted-at']?.value ?? submission['submitted-at'] ?? 0;
+        submission.value?.['submitted-at']?.value ??
+        submission['submitted-at']?.value ??
+        submission['submitted-at'] ??
+        0;
       const voteCount =
-        submission['vote-count']?.value ?? submission['vote-count'] ?? 0;
+        submission.value?.['vote-count']?.value ??
+        submission['vote-count']?.value ??
+        submission['vote-count'] ??
+        0;
 
       // Reconstruct full Supabase URL from stored path
       // If uri is a path like "uploads/xxx.m4a", prepend Supabase URL
       // If uri is already a full URL (legacy), use as-is
       const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-      const fullAudioUri = uri.startsWith('http')
-        ? uri
-        : `${supabaseUrl}/storage/v1/object/public/audio-files/${uri}`;
+      const fullAudioUri =
+        uri && uri.startsWith('http')
+          ? uri
+          : `${supabaseUrl}/storage/v1/object/public/audio-files/${uri}`;
 
       return {
         id:

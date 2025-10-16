@@ -27,8 +27,10 @@ import { AnimatedXPBar } from '../../components/AnimatedXPBar';
 import { Button } from '../../components/Button';
 import { GameButton } from '../../components/GameButton';
 import { BackgroundPulse } from '../../components/BackgroundPulse';
+import { NFTCard } from '../../components/NFTCard';
 import { useAppStore } from '../../store/useAppStore';
 import { useWallet } from '../../contexts/WalletContext';
+import { useNFT } from '../../hooks/useNFT';
 import { getStxBalance, microStxToStx } from '../../lib/stx-utils';
 
 const PROFILE_ICONS = [
@@ -68,6 +70,8 @@ export default function ProfileScreen() {
     logout: walletLogout,
   } = useWallet();
 
+  const { nfts, isLoading: isLoadingNFTs, fetchUserNFTs } = useNFT();
+
   const [showSeedPhrase, setShowSeedPhrase] = useState(false);
   const [showSeedPhraseModal, setShowSeedPhraseModal] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
@@ -97,17 +101,18 @@ export default function ProfileScreen() {
     }
   };
 
-  // Fetch balance on mount and when address changes
+  // Fetch balance and NFTs on mount and when address changes
   useEffect(() => {
     if (address) {
       fetchBalance();
+      fetchUserNFTs();
     }
   }, [address]);
 
   // Pull to refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchBalance();
+    await Promise.all([fetchBalance(), fetchUserNFTs()]);
     setRefreshing(false);
   };
 
@@ -153,7 +158,7 @@ export default function ProfileScreen() {
   // Filter stories created by current user (by blockchain address)
   const createdStories = storyChains.filter((story) => {
     // Compare creator address from blockchain with current user's address
-    const creator = story.creator?.value || story.creator || '';
+    const creator = (story.creator as any)?.value || story.creator || '';
     const isMatch = creator === address;
 
     console.log('🔍 Checking story:', {
@@ -333,6 +338,56 @@ export default function ProfileScreen() {
               </View>
             ))}
           </View>
+        </View>
+
+        {/* NFT Collection */}
+        <View className="px-lg mb-xl">
+          <View className="flex-row items-center justify-between mb-md">
+            <View className="flex-row items-center">
+              <Text className="text-2xl mr-sm">🎨</Text>
+              <Text className="text-h2 text-text-primary">
+                My NFTs ({nfts.length})
+              </Text>
+            </View>
+            {isLoadingNFTs && (
+              <ActivityIndicator size="small" color="#FF2E63" />
+            )}
+          </View>
+
+          {isLoadingNFTs && nfts.length === 0 ? (
+            <View className="bg-card rounded-lg p-xl items-center border border-border">
+              <ActivityIndicator size="large" color="#FF2E63" />
+              <Text className="text-caption text-text-secondary mt-md">
+                Loading NFTs...
+              </Text>
+            </View>
+          ) : nfts.length === 0 ? (
+            <View className="bg-card rounded-lg p-xl items-center border border-border">
+              <Text className="text-4xl mb-md">✨</Text>
+              <Text className="text-body text-text-primary font-semibold mb-xs">
+                No NFTs yet
+              </Text>
+              <Text className="text-caption text-text-secondary text-center">
+                Complete stories to earn exclusive NFTs!
+              </Text>
+            </View>
+          ) : (
+            nfts.map((nft) => (
+              <NFTCard
+                key={nft.tokenId}
+                tokenId={nft.tokenId}
+                uri={nft.uri}
+                metadata={nft.metadata}
+                onPress={() => {
+                  // Optional: Navigate to NFT detail screen
+                  Alert.alert(
+                    `NFT #${nft.tokenId}`,
+                    nft.metadata?.description || 'Story Completion NFT'
+                  );
+                }}
+              />
+            ))
+          )}
         </View>
 
         {/* My Created Stories */}

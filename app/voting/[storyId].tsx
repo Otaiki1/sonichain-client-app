@@ -29,10 +29,12 @@ export default function VotingScreen() {
     isProcessing,
     address,
   } = useContract();
-  const { fetchCurrentRound, refreshStory } = useStories();
+  const { fetchCurrentRound, refreshStory, fetchStoryFromBlockchain } =
+    useStories();
 
-  const story = storyChains.find((s) => s.id === storyId);
+  const localStory = storyChains.find((s) => s.id === storyId);
 
+  const [story, setStory] = useState<any>(localStory);
   const [selectedSubmission, setSelectedSubmission] = useState<string | null>(
     null
   );
@@ -61,7 +63,20 @@ export default function VotingScreen() {
       setIsLoading(true);
 
       try {
-        const currentRound = 1; // Default to round 1
+        // Fetch fresh story data from blockchain for accurate timing info
+        console.log('🔄 Fetching fresh story data from blockchain...');
+        const freshStoryData = await fetchStoryFromBlockchain(
+          parseInt(storyId as string)
+        );
+        const storyData = freshStoryData || localStory;
+        setStory(storyData);
+
+        // Get current round from fresh story data, fallback to 1
+        const currentRound =
+          storyData?.currentRound || storyData?.['current-round'] || 1;
+        console.log(
+          `📍 Fetching data for story ${storyId}, round ${currentRound}`
+        );
 
         // Fetch round data and submissions
         const data = await fetchCurrentRound(
@@ -77,7 +92,12 @@ export default function VotingScreen() {
           setRoundData(data.round);
 
           // Extract round timing data for countdown timer
-          const timingData = extractRoundTimingData(data.round, story);
+          // Pass the actual current round number as third parameter
+          const timingData = extractRoundTimingData(
+            data.round,
+            storyData,
+            currentRound
+          );
           setRoundTimingData(timingData);
           console.log('⏰ Round timing data set:', timingData);
 

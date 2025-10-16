@@ -138,47 +138,72 @@ export function useRoundTimer(
 /**
  * Extract round timing data from blockchain response
  * Handles nested blockchain data structure
+ *
+ * ⚠️ BLOCKCHAIN DATA STRUCTURE:
+ * Round data: { type: "(tuple ...)", value: { start-time: {...}, end-time: {...}, ... }}
+ * Story data: { type: "(tuple ...)", value: { voting-window: {...}, total-blocks: {...}, ... }}
+ *
+ * @param roundData - Round data from get-round() call
+ * @param storyData - Story data (for voting-window, total-blocks, etc.)
+ * @param currentRoundNum - The actual current round number (optional, uses story data if not provided)
  */
-export function extractRoundTimingData(roundData: any, storyData: any) {
-  // Extract from nested structure
+export function extractRoundTimingData(
+  roundData: any,
+  storyData: any,
+  currentRoundNum?: number
+) {
+  // Extract start-time from nested structure
   const startTime =
-    roundData?.value?.['start-time']?.value ||
-    roundData?.['start-time']?.value ||
-    roundData?.['start-time'] ||
+    roundData?.value?.['start-time']?.value ??
+    roundData?.['start-time']?.value ??
+    roundData?.['start-time'] ??
     0;
 
+  // Extract end-time from nested structure
   const endTime =
-    roundData?.value?.['end-time']?.value ||
-    roundData?.['end-time']?.value ||
-    roundData?.['end-time'] ||
+    roundData?.value?.['end-time']?.value ??
+    roundData?.['end-time']?.value ??
+    roundData?.['end-time'] ??
     0;
 
+  // Use provided currentRoundNum or extract from story data
   const currentRound =
-    storyData?.value?.['current-round']?.value ||
-    storyData?.['current-round']?.value ||
-    storyData?.['current-round'] ||
+    currentRoundNum ??
+    storyData?.value?.['current-round']?.value ??
+    storyData?.['current-round']?.value ??
+    storyData?.currentRound ??
+    storyData?.['current-round'] ??
     1;
 
+  // Extract total-blocks from story data
   const totalBlocks =
-    storyData?.value?.['total-blocks']?.value ||
-    storyData?.['total-blocks']?.value ||
-    storyData?.['total-blocks'] ||
+    storyData?.value?.['total-blocks']?.value ??
+    storyData?.['total-blocks']?.value ??
+    storyData?.totalBlocks ??
+    storyData?.['total-blocks'] ??
     0;
 
+  // Extract voting-window from story data
   const votingWindow =
-    storyData?.value?.['voting-window']?.value ||
-    storyData?.['voting-window']?.value ||
-    storyData?.['voting-window'] ||
+    storyData?.value?.['voting-window']?.value ??
+    storyData?.['voting-window']?.value ??
+    storyData?.votingWindow ??
+    storyData?.['voting-window'] ??
     86400;
+
+  const now = Math.floor(Date.now() / 1000);
+  const timeRemaining = endTime > 0 ? endTime - now : 0;
 
   console.log('⏰ Extracted round timing:', {
     startTime,
     endTime,
     currentRound,
     totalBlocks,
-    votingWindow,
-    startDate: new Date(startTime * 1000).toISOString(),
-    endDate: new Date(endTime * 1000).toISOString(),
+    votingWindow: `${votingWindow}s (${Math.floor(votingWindow / 3600)}h)`,
+    startDate: startTime > 0 ? new Date(startTime * 1000).toISOString() : 'N/A',
+    endDate: endTime > 0 ? new Date(endTime * 1000).toISOString() : 'N/A',
+    timeRemaining: `${timeRemaining}s`,
+    isExpired: endTime > 0 && now >= endTime,
   });
 
   return {

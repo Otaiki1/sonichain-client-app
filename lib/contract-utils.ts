@@ -560,37 +560,82 @@ function extractValue(data: any): any {
  * Get all submissions for a round
  * @param storyId - Story ID
  * @param roundNum - Round number
- * @returns Array of submissions
+ * @returns Array of submissions with proper blockchain data extraction
+ *
+ * ⚠️ EFFICIENT IMPLEMENTATION:
+ * 1. First fetches submission count via get-round-submission-count
+ * 2. Uses count to determine valid indexes (0 to count-1)
+ * 3. Fetches all submissions in parallel for better performance
  */
 export async function getAllRoundSubmissions(
   storyId: number,
   roundNum: number
 ) {
-  const count = await getRoundSubmissionCount(storyId, roundNum);
-  const submissions = [];
+  // Step 1: Get submission count for this round
+  const countData = await getRoundSubmissionCount(storyId, roundNum);
 
-  for (let i = 0; i <= count; i++) {
-    const submissionData = await getRoundSubmissionAt(storyId, roundNum, i);
-    console.log('🔍 Submission data:', submissionData);
-    if (submissionData) {
-      // Extract the actual value from the nested structure
-      const submissionId = submissionData.value['submission-id'].value;
-      console.log(
-        `🔍 Round submission ${roundNum}: submissionId =`,
-        submissionId
-      );
+  // Extract count from nested structure
+  const count = countData?.value ?? countData ?? 0;
 
-      const fullSubmission = await getSubmission(submissionId);
-      console.log('🔍 Full submission:', fullSubmission);
-      if (fullSubmission) {
-        submissions.push({
-          id: submissionId,
-          ...fullSubmission.value,
-        });
-      }
+  console.log(`🔍 Round ${roundNum} has ${count} submissions`);
+
+  if (count === 0) {
+    console.log('⚠️ No submissions in this round');
+    return [];
+  }
+
+  // Step 2: Fetch all submissions in parallel (indexes 0 to count-1)
+  const submissionPromises = [];
+  for (let i = 0; i < count; i++) {
+    submissionPromises.push(getRoundSubmissionAt(storyId, roundNum, i));
+  }
+
+  const submissionDataArray = await Promise.all(submissionPromises);
+  console.log('🔍 Fetched submission data array:', submissionDataArray);
+
+  // Step 3: Extract submission IDs
+  const submissionIds = [];
+  for (let i = 0; i < submissionDataArray.length; i++) {
+    const submissionData = submissionDataArray[i];
+
+    if (!submissionData) {
+      console.log(`⚠️ No data for submission at index ${i}`);
+      continue;
+    }
+
+    // Extract submission-id from nested structure
+    const submissionId =
+      submissionData.value?.['submission-id']?.value ??
+      submissionData['submission-id']?.value ??
+      submissionData['submission-id'];
+
+    if (submissionId) {
+      submissionIds.push(submissionId);
+      console.log(`✅ Found submission ID ${submissionId} at index ${i}`);
+    } else {
+      console.log(`⚠️ No submission ID found at index ${i}`);
     }
   }
-  console.log('🔍 Submissions:', submissions);
+
+  // Step 4: Fetch all full submission details in parallel
+  const fullSubmissionPromises = submissionIds.map((id) => getSubmission(id));
+  const fullSubmissions = await Promise.all(fullSubmissionPromises);
+
+  // Step 5: Combine submission IDs with their full data
+  const submissions = [];
+  for (let i = 0; i < submissionIds.length; i++) {
+    const fullSubmission = fullSubmissions[i];
+    if (fullSubmission) {
+      submissions.push({
+        id: submissionIds[i],
+        ...fullSubmission,
+      });
+    }
+  }
+
+  console.log(
+    `✅ Retrieved ${submissions.length} submissions for round ${roundNum}`
+  );
   return submissions;
 }
 
@@ -708,6 +753,148 @@ export async function getAllStoriesFromBlockchain() {
     return stories;
   } catch (error) {
     console.error('❌ Error fetching all stories:', error);
+    return [];
+  }
+}
+
+// ===========================================
+// NFT FUNCTIONS
+// ===========================================
+
+/**
+ * Call NFT contract read-only function
+ * @param functionName - Name of the read-only function
+ * @param functionArgs - Arguments for the function
+ */
+async function callNFTReadOnly<T = any>(
+  functionName: string,
+  functionArgs: ClarityValue[]
+): Promise<T> {
+  return withRateLimit(
+    `nft-${functionName}-${serializeArgsForCache(functionArgs)}`,
+    async () => {
+      const result = await fetchCallReadOnlyFunction({
+        contractAddress: CONTRACT_CONFIG.NFT_CONTRACT_ADDRESS,
+        contractName: CONTRACT_CONFIG.NFT_CONTRACT_NAME,
+        functionName,
+        functionArgs,
+        network: CONTRACT_CONFIG.NETWORK,
+        senderAddress: CONTRACT_CONFIG.NFT_CONTRACT_ADDRESS,
+      });
+
+      return cvToValue(result) as T;
+    }
+  );
+}
+
+/**
+ * Get the last minted NFT token ID
+ * @returns Last token ID
+ */
+export async function getLastTokenId(): Promise<number> {
+  const result = await callNFTReadOnly<any>('get-last-token-id', []);
+  // Result is (ok uint), extract the value
+  return Number(result?.value ?? result ?? 0);
+}
+
+/**
+ * Get NFT token URI (metadata)
+ * @param tokenId - Token ID
+ * @returns Token URI (IPFS hash or URL)
+ */
+export async function getTokenUri(tokenId: number): Promise<string | null> {
+  const result = await callNFTReadOnly<any>('get-token-uri', [uintCV(tokenId)]);
+  // Result is (ok (optional (string-ascii 256)))
+  // Extract: result.value.value or result.value
+  const uri = result?.value?.value ?? result?.value ?? result ?? null;
+  return uri ? String(uri) : null;
+}
+
+/**
+ * Get NFT token owner
+ * @param tokenId - Token ID
+ * @returns Owner principal address or null
+ */
+export async function getTokenOwner(tokenId: number): Promise<string | null> {
+  const result = await callNFTReadOnly<any>('get-owner', [uintCV(tokenId)]);
+  // Result is (ok (optional principal))
+  const owner = result?.value?.value ?? result?.value ?? result ?? null;
+  return owner ? String(owner) : null;
+}
+
+/**
+ * Get all NFTs owned by a user
+ * @param ownerAddress - Owner's principal address
+ * @returns Array of NFT objects with token ID and metadata
+ */
+export async function getUserNFTs(ownerAddress: string): Promise<
+  Array<{
+    tokenId: number;
+    uri: string | null;
+    metadata: any;
+  }>
+> {
+  try {
+    const lastTokenId = await getLastTokenId();
+    console.log(
+      `🔍 Checking NFTs for ${ownerAddress} (total minted: ${lastTokenId})`
+    );
+
+    if (lastTokenId === 0) {
+      console.log('⚠️ No NFTs have been minted yet');
+      return [];
+    }
+
+    const userNFTs = [];
+
+    // Check each token to see if user owns it
+    // Note: This is not the most efficient way for large numbers of NFTs
+    // In production, you'd want an indexer or event-based approach
+    for (let tokenId = 1; tokenId <= lastTokenId; tokenId++) {
+      const owner = await getTokenOwner(tokenId);
+
+      if (owner === ownerAddress) {
+        const uri = await getTokenUri(tokenId);
+        console.log(`✅ User owns NFT #${tokenId} with URI: ${uri}`);
+
+        // Fetch metadata from IPFS if URI exists
+        let metadata = null;
+        if (uri) {
+          try {
+            // If URI is an IPFS hash, fetch from Pinata gateway
+            const isIPFSHash =
+              /^Qm[a-zA-Z0-9]{44}$/.test(uri) ||
+              /^baf[a-zA-Z0-9]{52,}$/.test(uri);
+            if (isIPFSHash) {
+              const pinataGateway =
+                process.env.EXPO_PUBLIC_PINATA_GATEWAY ||
+                'https://gateway.pinata.cloud';
+              const metadataUrl = `${pinataGateway}/ipfs/${uri}`;
+              const response = await fetch(metadataUrl);
+              if (response.ok) {
+                metadata = await response.json();
+              }
+            }
+          } catch (error) {
+            console.warn(
+              `⚠️ Failed to fetch metadata for NFT #${tokenId}:`,
+              error
+            );
+          }
+        }
+
+        userNFTs.push({
+          tokenId,
+          uri,
+          metadata,
+        });
+      }
+    }
+
+    console.log(`✅ Found ${userNFTs.length} NFTs for user`);
+    return userNFTs;
+  } catch (error) {
+    console.error('❌ Error fetching user NFTs:', error);
     return [];
   }
 }
